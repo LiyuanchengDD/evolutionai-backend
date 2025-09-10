@@ -1,66 +1,57 @@
 package com.example.grpcdemo.service;
 
+import com.example.grpcdemo.proto.CreateJobRequest;
 import com.example.grpcdemo.proto.JobRequest;
 import com.example.grpcdemo.proto.JobResponse;
-import com.example.grpcdemo.proto.CreateJobRequest;
+import com.example.grpcdemo.proto.JobServiceGrpc;
 import com.example.grpcdemo.proto.ListJobsRequest;
 import com.example.grpcdemo.proto.ListJobsResponse;
-import com.example.grpcdemo.proto.JobServiceGrpc;
-
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
-@GrpcService  // 让 Spring Boot 自动注册这个 gRPC 服务
+@GrpcService
 public class JobServiceImpl extends JobServiceGrpc.JobServiceImplBase {
 
-    // 内存中的岗位数据（模拟数据库）
-    private final List<JobResponse> jobStore = new ArrayList<>();
+    private final Map<String, JobResponse> jobs = new ConcurrentHashMap<>();
 
     @Override
     public void getJob(JobRequest request, StreamObserver<JobResponse> responseObserver) {
-        // 在内存里查找岗位
-        JobResponse job = jobStore.stream()
-                .filter(j -> j.getJobId().equals(request.getJobId()))
-                .findFirst()
-                .orElse(JobResponse.newBuilder()
+        JobResponse response = jobs.getOrDefault(
+                request.getJobId(),
+                JobResponse.newBuilder()
                         .setJobId(request.getJobId())
-                        .setJobTitle("Not Found")
-                        .setStatus("Unknown")
-                        .build());
-
-        responseObserver.onNext(job);
+                        .setStatus("NOT_FOUND")
+                        .build()
+        );
+        responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
 
     @Override
     public void createJob(CreateJobRequest request, StreamObserver<JobResponse> responseObserver) {
-        // 生成随机 jobId
-        String jobId = UUID.randomUUID().toString();
-
-        JobResponse newJob = JobResponse.newBuilder()
-                .setJobId(jobId)
+        String id = UUID.randomUUID().toString();
+        JobResponse response = JobResponse.newBuilder()
+                .setJobId(id)
                 .setJobTitle(request.getJobTitle())
-                .setStatus("Created")
+                .setStatus("CREATED")
                 .build();
-
-        // 保存到内存
-        jobStore.add(newJob);
-
-        responseObserver.onNext(newJob);
+        jobs.put(id, response);
+        responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
 
     @Override
     public void listJobs(ListJobsRequest request, StreamObserver<ListJobsResponse> responseObserver) {
         ListJobsResponse response = ListJobsResponse.newBuilder()
-                .addAllJobs(jobStore)
+                .addAllJobs(new ArrayList<>(jobs.values()))
                 .build();
-
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
 }
+
