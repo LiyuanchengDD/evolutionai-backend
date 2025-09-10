@@ -58,3 +58,4 @@ build/
 ### VS Code ###
 .vscode/
 >>>>>>> 7117cb7 (Initial commit: EvolutionAI backend with gRPC microservices)
+.DS_Store
