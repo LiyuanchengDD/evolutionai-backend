@@ -56,4 +56,3 @@ public class CandidateServiceImpl extends CandidateServiceGrpc.CandidateServiceI
         responseObserver.onCompleted();
     }
 }
-

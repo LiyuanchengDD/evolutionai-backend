@@ -23,4 +23,7 @@ message ReportResponse {
   string reportId = 1;
   string interviewId = 2;
   string content = 3;
+  float score = 4;
+  string evaluatorComment = 5;
+  int64 createdAt = 6;
 }
