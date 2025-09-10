@@ -4,6 +4,7 @@ import com.example.grpcdemo.proto.GenerateReportRequest;
 import com.example.grpcdemo.proto.GetReportRequest;
 import com.example.grpcdemo.proto.ReportResponse;
 import com.example.grpcdemo.proto.ReportServiceGrpc;
+import io.grpc.Status;
 
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
@@ -25,6 +26,9 @@ public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
                 .setReportId(reportId)
                 .setInterviewId(request.getInterviewId())
                 .setContent("Report placeholder")
+                .setScore(0)
+                .setEvaluatorComment("")
+                .setCreatedAt(System.currentTimeMillis())
                 .build();
         reportStore.put(reportId, response);
         responseObserver.onNext(response);
@@ -34,13 +38,11 @@ public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
     @Override
     public void getReport(GetReportRequest request,
                           StreamObserver<ReportResponse> responseObserver) {
-        ReportResponse response = reportStore.getOrDefault(
-                request.getReportId(),
-                ReportResponse.newBuilder()
-                        .setReportId(request.getReportId())
-                        .setInterviewId("")
-                        .setContent("Not Found")
-                        .build());
+        ReportResponse response = reportStore.get(request.getReportId());
+        if (response == null) {
+            responseObserver.onError(Status.NOT_FOUND.withDescription("Report not found").asRuntimeException());
+            return;
+        }
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
