@@ -1,0 +1,6 @@
+server:
+  port: 8080   # Spring Boot 自己的 Web 端口 (如果你以后要加 REST API)
+
+grpc:
+  server:
+    port: 9091   # gRPC 服务端口，BloomRPC 就连 localhost:9091

@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.example.grpcdemo.proto";
+option java_outer_classname = "JobProto";
+
+package job;
+
+// 定义 JobService
+service JobService {
+  rpc GetJob (JobRequest) returns (JobResponse);
+  rpc CreateJob (CreateJobRequest) returns (JobResponse);
+  rpc ListJobs (ListJobsRequest) returns (ListJobsResponse);
+}
+
+// ================== Messages ==================
+
+// GetJob 请求
+message JobRequest {
+  string jobId = 1;
+}
+
+// CreateJob 请求
+message CreateJobRequest {
+  string jobTitle = 1;
+  string description = 2;
+}
+
+// Job 响应
+message JobResponse {
+  string jobId = 1;
+  string jobTitle = 2;
+  string status = 3;
+}
+
+// ListJobs 请求（这里可以留空，将来可扩展过滤条件）
+message ListJobsRequest {}
+
+// ListJobs 响应
+message ListJobsResponse {
+  repeated JobResponse jobs = 1;
+}

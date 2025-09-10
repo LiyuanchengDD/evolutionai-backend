@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.example.grpcdemo.proto";
+option java_outer_classname = "InterviewProto";
+
+package interview;
+
+// ========== 服务定义 ==========
+service InterviewService {
+  rpc ScheduleInterview (ScheduleInterviewRequest) returns (InterviewResponse);
+  rpc ConfirmInterview (ConfirmInterviewRequest) returns (InterviewResponse);
+  rpc GetInterviewsByCandidate (GetInterviewsByCandidateRequest) returns (InterviewsResponse);
+  rpc GetInterviewsByJob (GetInterviewsByJobRequest) returns (InterviewsResponse);
+}
+
+// ========== 请求/响应消息 ==========
+
+// 安排面试
+message ScheduleInterviewRequest {
+  string candidateId = 1;
+  string jobId = 2;
+  string scheduledTime = 3; // ISO-8601 格式 "2025-09-11T10:00:00Z"
+}
+
+// 候选人确认/拒绝面试
+message ConfirmInterviewRequest {
+  string interviewId = 1;
+  bool accepted = 2;
+}
+
+// 单个面试的响应
+message InterviewResponse {
+  string interviewId = 1;
+  string candidateId = 2;
+  string jobId = 3;
+  string scheduledTime = 4;
+  string status = 5; // Scheduled, Confirmed, Rejected, Completed
+}
+
+// 查询候选人面试
+message GetInterviewsByCandidateRequest {
+  string candidateId = 1;
+}
+
+// 查询岗位面试
+message GetInterviewsByJobRequest {
+  string jobId = 1;
+}
+
+// 多个面试响应
+message InterviewsResponse {
+  repeated InterviewResponse interviews = 1;
+}

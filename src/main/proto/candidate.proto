@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.example.grpcdemo.proto";
+option java_outer_classname = "CandidateProto";
+
+package candidate;
+
+// 定义 CandidateService
+service CandidateService {
+  rpc CreateCandidate (CreateCandidateRequest) returns (CandidateResponse);
+  rpc GetCandidate (CandidateRequest) returns (CandidateResponse);
+  rpc ListCandidates (ListCandidatesRequest) returns (ListCandidatesResponse);
+}
+
+// ========== Messages ==========
+
+// 创建候选人请求
+message CreateCandidateRequest {
+  string name = 1;
+  string email = 2;
+  string phone = 3;
+}
+
+// 查询候选人请求
+message CandidateRequest {
+  string candidateId = 1;
+}
+
+// 候选人响应
+message CandidateResponse {
+  string candidateId = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+  string status = 5;
+}
+
+// 查询所有候选人请求
+message ListCandidatesRequest {}
+
+// 查询所有候选人响应
+message ListCandidatesResponse {
+  repeated CandidateResponse candidates = 1;
+}
