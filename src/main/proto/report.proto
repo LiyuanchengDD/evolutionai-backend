@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.example.grpcdemo.proto";
+option java_outer_classname = "ReportProto";
+
+package report;
+
+service ReportService {
+  rpc CreateReport (CreateReportRequest) returns (ReportResponse);
+  rpc GetReport (ReportRequest) returns (ReportResponse);
+}
+
+message CreateReportRequest {
+  string interviewId = 1;
+  float score = 2;
+  string evaluatorComment = 3;
+}
+
+message ReportRequest {
+  string reportId = 1;
+}
+
+message ReportResponse {
+  string reportId = 1;
+  string interviewId = 2;
+  float score = 3;
+  string evaluatorComment = 4;
+  string createdAt = 5;
+  string updatedAt = 6;
+}
