@@ -26,4 +26,5 @@ message UserResponse {
   string userId = 1;
   string username = 2;
   string role = 3;
+  string accessToken = 4;
 }
