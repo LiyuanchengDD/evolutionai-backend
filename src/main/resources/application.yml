@@ -4,3 +4,16 @@ server:
 grpc:
   server:
     port: 9091   # gRPC 服务端口，BloomRPC 就连 localhost:9091
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:reports;DB_CLOSE_DELAY=-1
+    driverClassName: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
