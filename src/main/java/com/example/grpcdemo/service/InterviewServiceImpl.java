@@ -1,5 +1,6 @@
 package com.example.grpcdemo.service;
 
+import com.example.grpcdemo.model.Interview;
 import com.example.grpcdemo.proto.ConfirmInterviewRequest;
 import com.example.grpcdemo.proto.GetInterviewsByCandidateRequest;
 import com.example.grpcdemo.proto.GetInterviewsByJobRequest;
@@ -7,39 +8,43 @@ import com.example.grpcdemo.proto.InterviewResponse;
 import com.example.grpcdemo.proto.InterviewServiceGrpc;
 import com.example.grpcdemo.proto.InterviewsResponse;
 import com.example.grpcdemo.proto.ScheduleInterviewRequest;
+import com.example.grpcdemo.repository.InterviewRepository;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
+/**
+ * gRPC service for managing interviews backed by JPA.
+ */
 @GrpcService
 public class InterviewServiceImpl extends InterviewServiceGrpc.InterviewServiceImplBase {
 
-    private final Map<String, InterviewResponse> interviews = new ConcurrentHashMap<>();
+    private final InterviewRepository repository;
+
+    public InterviewServiceImpl(InterviewRepository repository) {
+        this.repository = repository;
+    }
 
     @Override
     public void scheduleInterview(ScheduleInterviewRequest request, StreamObserver<InterviewResponse> responseObserver) {
-        String id = UUID.randomUUID().toString();
-        InterviewResponse response = InterviewResponse.newBuilder()
-                .setInterviewId(id)
-                .setCandidateId(request.getCandidateId())
-                .setJobId(request.getJobId())
-                .setScheduledTime(request.getScheduledTime())
-                .setStatus("SCHEDULED")
-                .build();
-        interviews.put(id, response);
-        responseObserver.onNext(response);
+        Interview interview = new Interview();
+        interview.setId(UUID.randomUUID().toString());
+        interview.setCandidateId(request.getCandidateId());
+        interview.setJobId(request.getJobId());
+        interview.setScheduledTime(request.getScheduledTime());
+        interview.setStatus("SCHEDULED");
+        Interview saved = repository.save(interview);
+        responseObserver.onNext(toResponse(saved));
         responseObserver.onCompleted();
     }
 
     @Override
     public void confirmInterview(ConfirmInterviewRequest request, StreamObserver<InterviewResponse> responseObserver) {
-        InterviewResponse existing = interviews.get(request.getInterviewId());
-        if (existing == null) {
+        Interview interview = repository.findById(request.getInterviewId()).orElse(null);
+        if (interview == null) {
             responseObserver.onNext(InterviewResponse.newBuilder()
                     .setInterviewId(request.getInterviewId())
                     .setStatus("NOT_FOUND")
@@ -47,35 +52,38 @@ public class InterviewServiceImpl extends InterviewServiceGrpc.InterviewServiceI
             responseObserver.onCompleted();
             return;
         }
-        String status = request.getAccepted() ? "CONFIRMED" : "REJECTED";
-        InterviewResponse updated = existing.toBuilder().setStatus(status).build();
-        interviews.put(existing.getInterviewId(), updated);
-        responseObserver.onNext(updated);
+        interview.setStatus(request.getAccepted() ? "CONFIRMED" : "REJECTED");
+        Interview updated = repository.save(interview);
+        responseObserver.onNext(toResponse(updated));
         responseObserver.onCompleted();
     }
 
     @Override
     public void getInterviewsByCandidate(GetInterviewsByCandidateRequest request, StreamObserver<InterviewsResponse> responseObserver) {
-        List<InterviewResponse> list = new ArrayList<>();
-        for (InterviewResponse i : interviews.values()) {
-            if (i.getCandidateId().equals(request.getCandidateId())) {
-                list.add(i);
-            }
-        }
+        List<InterviewResponse> list = repository.findByCandidateId(request.getCandidateId()).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
         responseObserver.onNext(InterviewsResponse.newBuilder().addAllInterviews(list).build());
         responseObserver.onCompleted();
     }
 
     @Override
     public void getInterviewsByJob(GetInterviewsByJobRequest request, StreamObserver<InterviewsResponse> responseObserver) {
-        List<InterviewResponse> list = new ArrayList<>();
-        for (InterviewResponse i : interviews.values()) {
-            if (i.getJobId().equals(request.getJobId())) {
-                list.add(i);
-            }
-        }
+        List<InterviewResponse> list = repository.findByJobId(request.getJobId()).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
         responseObserver.onNext(InterviewsResponse.newBuilder().addAllInterviews(list).build());
         responseObserver.onCompleted();
+    }
+
+    private InterviewResponse toResponse(Interview interview) {
+        return InterviewResponse.newBuilder()
+                .setInterviewId(interview.getId())
+                .setCandidateId(interview.getCandidateId())
+                .setJobId(interview.getJobId())
+                .setScheduledTime(interview.getScheduledTime())
+                .setStatus(interview.getStatus())
+                .build();
     }
 }
 
