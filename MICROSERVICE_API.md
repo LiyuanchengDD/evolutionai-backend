@@ -55,6 +55,15 @@
 - `createdAt`（毫秒级时间戳）
 
 ### Notification Service
-- `rpc SendInvitation(SendInvitationRequest) returns (SendInvitationResponse)`
+- `rpc SendInvitation(SendInvitationRequest) returns (SendInvitationResponse)` — 发送面试邀约邮件
+
+`SendInvitationRequest` 字段：
+- `email`
+- `subject`
+- `content`
+
+`SendInvitationResponse` 字段：
+- `success`
+- `message`
 
 Each service maintains its own data store and communicates over gRPC to ensure loose coupling and scalability.
