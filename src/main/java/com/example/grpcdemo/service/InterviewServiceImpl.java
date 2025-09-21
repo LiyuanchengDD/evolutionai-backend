@@ -1,5 +1,7 @@
 package com.example.grpcdemo.service;
 
+import com.example.grpcdemo.config.RabbitMQConfig;
+import com.example.grpcdemo.events.InterviewCompletedEvent;
 import com.example.grpcdemo.model.Interview;
 import com.example.grpcdemo.proto.ConfirmInterviewRequest;
 import com.example.grpcdemo.proto.GetInterviewsByCandidateRequest;
@@ -11,6 +13,8 @@ import com.example.grpcdemo.proto.ScheduleInterviewRequest;
 import com.example.grpcdemo.repository.InterviewRepository;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.UUID;
@@ -23,9 +27,12 @@ import java.util.stream.Collectors;
 public class InterviewServiceImpl extends InterviewServiceGrpc.InterviewServiceImplBase {
 
     private final InterviewRepository repository;
+    private final ObjectProvider<RabbitTemplate> rabbitTemplateProvider;
 
-    public InterviewServiceImpl(InterviewRepository repository) {
+    public InterviewServiceImpl(InterviewRepository repository,
+                                ObjectProvider<RabbitTemplate> rabbitTemplateProvider) {
         this.repository = repository;
+        this.rabbitTemplateProvider = rabbitTemplateProvider;
     }
 
     @Override
@@ -56,6 +63,13 @@ public class InterviewServiceImpl extends InterviewServiceGrpc.InterviewServiceI
         Interview updated = repository.save(interview);
         responseObserver.onNext(toResponse(updated));
         responseObserver.onCompleted();
+        if (request.getAccepted()) {
+            RabbitTemplate rabbitTemplate = rabbitTemplateProvider.getIfAvailable();
+            if (rabbitTemplate != null) {
+                rabbitTemplate.convertAndSend(RabbitMQConfig.INTERVIEW_COMPLETED_QUEUE,
+                        new InterviewCompletedEvent(updated.getId(), updated.getCandidateId()));
+            }
+        }
     }
 
     @Override
