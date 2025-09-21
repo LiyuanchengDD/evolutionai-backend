@@ -9,59 +9,65 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class ReportServiceImplTest {
 
     private ReportRepository reportRepository;
-    private AiEvaluationClient aiEvaluationClient;
+    private ReportGenerator reportGenerator;
     private ReportServiceImpl service;
 
     @BeforeEach
     void setUp() {
         reportRepository = Mockito.mock(ReportRepository.class);
-        aiEvaluationClient = Mockito.mock(AiEvaluationClient.class);
-        service = new ReportServiceImpl(reportRepository, aiEvaluationClient);
+        reportGenerator = Mockito.mock(ReportGenerator.class);
+        service = new ReportServiceImpl(reportRepository, reportGenerator);
     }
 
     @Test
     void generateReport_persistsEntity() {
-        when(aiEvaluationClient.evaluate("int1"))
-                .thenReturn(new EvaluationResult("content", 4.5f, "good"));
+        ReportEntity generated = new ReportEntity("r1", "int1", "content", 4.5f, "good", 5L);
+        when(reportGenerator.generateAndStore("int1")).thenReturn(generated);
         TestObserver observer = new TestObserver();
 
         service.generateReport(GenerateReportRequest.newBuilder().setInterviewId("int1").build(), observer);
 
         assertNull(observer.error);
         assertNotNull(observer.value);
-        ArgumentCaptor<ReportEntity> captor = ArgumentCaptor.forClass(ReportEntity.class);
-        verify(reportRepository).save(captor.capture());
-        ReportEntity saved = captor.getValue();
-        assertEquals(observer.value.getReportId(), saved.getReportId());
-        assertEquals("int1", saved.getInterviewId());
-        assertEquals("content", saved.getContent());
-        assertEquals(4.5f, saved.getScore());
-        assertEquals("good", saved.getEvaluatorComment());
+        assertEquals("r1", observer.value.getReportId());
+        assertEquals("int1", observer.value.getInterviewId());
+        assertEquals("content", observer.value.getContent());
+        assertEquals(4.5f, observer.value.getScore());
+        assertEquals("good", observer.value.getEvaluatorComment());
+        verify(reportGenerator).generateAndStore("int1");
     }
 
     @Test
     void generateReport_handlesEvaluationFailure() {
-        when(aiEvaluationClient.evaluate(anyString())).thenThrow(new RuntimeException("fail"));
+        when(reportGenerator.generateAndStore("int1")).thenThrow(new RuntimeException("fail"));
         TestObserver observer = new TestObserver();
 
         service.generateReport(GenerateReportRequest.newBuilder().setInterviewId("int1").build(), observer);
 
         assertNotNull(observer.error);
         assertEquals(Status.Code.INTERNAL, Status.fromThrowable(observer.error).getCode());
-        verify(reportRepository, never()).save(any());
+        verify(reportGenerator).generateAndStore("int1");
+    }
+
+    @Test
+    void generateReport_missingInterviewReturnsNotFound() {
+        when(reportGenerator.generateAndStore("missing")).thenThrow(new InterviewNotFoundException("missing"));
+        TestObserver observer = new TestObserver();
+
+        service.generateReport(GenerateReportRequest.newBuilder().setInterviewId("missing").build(), observer);
+
+        assertNotNull(observer.error);
+        assertEquals(Status.Code.NOT_FOUND, Status.fromThrowable(observer.error).getCode());
     }
 
     @Test
