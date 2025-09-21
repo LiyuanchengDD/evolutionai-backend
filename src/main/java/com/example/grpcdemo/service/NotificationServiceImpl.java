@@ -32,6 +32,8 @@ public class NotificationServiceImpl extends NotificationServiceGrpc.Notificatio
 
             mailSender.send(message);
 
+            logger.info("Sent invitation email to {} with subject '{}'", request.getEmail(), request.getSubject());
+
             SendInvitationResponse response = SendInvitationResponse.newBuilder()
                     .setSuccess(true)
                     .build();
@@ -45,12 +47,10 @@ public class NotificationServiceImpl extends NotificationServiceGrpc.Notificatio
                 detailedMessage = baseMessage + ". Cause: " + e.getMessage();
             }
 
-            logger.error("Failed to send invitation email to {} with subject '{}'. Cause: {}",
-                    request.getEmail(), request.getSubject(), e.getMessage(), e);
+            logger.error("{}", detailedMessage, e);
             responseObserver.onError(
                     Status.INTERNAL
                             .withDescription(detailedMessage)
-                            .withCause(e)
                             .asRuntimeException());
         }
     }

@@ -75,6 +75,5 @@ class NotificationServiceImplTest {
         assertEquals(Status.Code.INTERNAL, status.getCode());
         assertEquals("Failed to send invitation email to candidate@example.com with subject 'Interview Invitation'. Cause: SMTP server not available",
                 status.getDescription());
-        assertSame(mailException, status.getCause());
     }
 }
