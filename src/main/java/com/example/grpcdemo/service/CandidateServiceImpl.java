@@ -7,6 +7,7 @@ import com.example.grpcdemo.proto.CandidateServiceGrpc;
 import com.example.grpcdemo.proto.CreateCandidateRequest;
 import com.example.grpcdemo.proto.ListCandidatesRequest;
 import com.example.grpcdemo.proto.ListCandidatesResponse;
+import com.example.grpcdemo.proto.UpdateCandidateRequest;
 import com.example.grpcdemo.repository.CandidateRepository;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
@@ -46,6 +47,52 @@ public class CandidateServiceImpl extends CandidateServiceGrpc.CandidateServiceI
     public void getCandidate(CandidateRequest request, StreamObserver<CandidateResponse> responseObserver) {
         CandidateResponse response = repository.findById(request.getCandidateId())
                 .map(this::toResponse)
+                .orElse(CandidateResponse.newBuilder()
+                        .setCandidateId(request.getCandidateId())
+                        .setStatus("NOT_FOUND")
+                        .build());
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void updateCandidate(UpdateCandidateRequest request, StreamObserver<CandidateResponse> responseObserver) {
+        Candidate candidate = repository.findById(request.getCandidateId()).orElse(null);
+        if (candidate == null) {
+            responseObserver.onNext(CandidateResponse.newBuilder()
+                    .setCandidateId(request.getCandidateId())
+                    .setStatus("NOT_FOUND")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+        if (!request.getName().isEmpty()) {
+            candidate.setName(request.getName());
+        }
+        if (!request.getEmail().isEmpty()) {
+            candidate.setEmail(request.getEmail());
+        }
+        if (!request.getPhone().isEmpty()) {
+            candidate.setPhone(request.getPhone());
+        }
+        if (!request.getStatus().isEmpty()) {
+            candidate.setStatus(request.getStatus());
+        }
+        Candidate saved = repository.save(candidate);
+        responseObserver.onNext(toResponse(saved));
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void deleteCandidate(CandidateRequest request, StreamObserver<CandidateResponse> responseObserver) {
+        CandidateResponse response = repository.findById(request.getCandidateId())
+                .map(candidate -> {
+                    repository.delete(candidate);
+                    return CandidateResponse.newBuilder()
+                            .setCandidateId(request.getCandidateId())
+                            .setStatus("DELETED")
+                            .build();
+                })
                 .orElse(CandidateResponse.newBuilder()
                         .setCandidateId(request.getCandidateId())
                         .setStatus("NOT_FOUND")

@@ -7,6 +7,7 @@ import com.example.grpcdemo.proto.JobResponse;
 import com.example.grpcdemo.proto.JobServiceGrpc;
 import com.example.grpcdemo.proto.ListJobsRequest;
 import com.example.grpcdemo.proto.ListJobsResponse;
+import com.example.grpcdemo.proto.UpdateJobRequest;
 import com.example.grpcdemo.repository.JobRepository;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
@@ -49,6 +50,49 @@ public class JobServiceImpl extends JobServiceGrpc.JobServiceImplBase {
         Job saved = repository.save(job);
 
         responseObserver.onNext(toResponse(saved));
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void updateJob(UpdateJobRequest request, StreamObserver<JobResponse> responseObserver) {
+        Job job = repository.findById(request.getJobId()).orElse(null);
+        if (job == null) {
+            responseObserver.onNext(JobResponse.newBuilder()
+                    .setJobId(request.getJobId())
+                    .setStatus("NOT_FOUND")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+        if (!request.getJobTitle().isEmpty()) {
+            job.setJobTitle(request.getJobTitle());
+        }
+        if (!request.getDescription().isEmpty()) {
+            job.setDescription(request.getDescription());
+        }
+        if (!request.getStatus().isEmpty()) {
+            job.setStatus(request.getStatus());
+        }
+        Job saved = repository.save(job);
+        responseObserver.onNext(toResponse(saved));
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void deleteJob(JobRequest request, StreamObserver<JobResponse> responseObserver) {
+        JobResponse response = repository.findById(request.getJobId())
+                .map(job -> {
+                    repository.delete(job);
+                    return JobResponse.newBuilder()
+                            .setJobId(request.getJobId())
+                            .setStatus("DELETED")
+                            .build();
+                })
+                .orElse(JobResponse.newBuilder()
+                        .setJobId(request.getJobId())
+                        .setStatus("NOT_FOUND")
+                        .build());
+        responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
 

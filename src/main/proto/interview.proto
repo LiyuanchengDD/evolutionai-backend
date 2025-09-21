@@ -10,6 +10,9 @@ package interview;
 service InterviewService {
   rpc ScheduleInterview (ScheduleInterviewRequest) returns (InterviewResponse);
   rpc ConfirmInterview (ConfirmInterviewRequest) returns (InterviewResponse);
+  rpc GetInterview (InterviewRequest) returns (InterviewResponse);
+  rpc CompleteInterview (InterviewRequest) returns (InterviewResponse);
+  rpc DeleteInterview (InterviewRequest) returns (InterviewResponse);
   rpc GetInterviewsByCandidate (GetInterviewsByCandidateRequest) returns (InterviewsResponse);
   rpc GetInterviewsByJob (GetInterviewsByJobRequest) returns (InterviewsResponse);
 }
@@ -27,6 +30,11 @@ message ScheduleInterviewRequest {
 message ConfirmInterviewRequest {
   string interviewId = 1;
   bool accepted = 2;
+}
+
+// 单个面试请求
+message InterviewRequest {
+  string interviewId = 1;
 }
 
 // 单个面试的响应
