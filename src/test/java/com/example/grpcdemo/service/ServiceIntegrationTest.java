@@ -1,14 +1,19 @@
 package com.example.grpcdemo.service;
 
+import com.example.grpcdemo.proto.CandidateRequest;
 import com.example.grpcdemo.proto.CandidateResponse;
 import com.example.grpcdemo.proto.ConfirmInterviewRequest;
 import com.example.grpcdemo.proto.CreateCandidateRequest;
 import com.example.grpcdemo.proto.CreateJobRequest;
 import com.example.grpcdemo.proto.GetInterviewsByCandidateRequest;
+import com.example.grpcdemo.proto.InterviewRequest;
 import com.example.grpcdemo.proto.InterviewResponse;
 import com.example.grpcdemo.proto.InterviewsResponse;
+import com.example.grpcdemo.proto.JobRequest;
 import com.example.grpcdemo.proto.JobResponse;
 import com.example.grpcdemo.proto.ScheduleInterviewRequest;
+import com.example.grpcdemo.proto.UpdateCandidateRequest;
+import com.example.grpcdemo.proto.UpdateJobRequest;
 import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -40,6 +45,16 @@ class ServiceIntegrationTest {
         CandidateResponse candidate = candObs.value;
         Assertions.assertEquals("CREATED", candidate.getStatus());
 
+        // update candidate
+        ResponseObserver<CandidateResponse> candUpdateObs = new ResponseObserver<>();
+        candidateService.updateCandidate(UpdateCandidateRequest.newBuilder()
+                .setCandidateId(candidate.getCandidateId())
+                .setPhone("456")
+                .setStatus("SCREENING")
+                .build(), candUpdateObs);
+        CandidateResponse updatedCandidate = candUpdateObs.value;
+        Assertions.assertEquals("SCREENING", updatedCandidate.getStatus());
+
         // create job
         ResponseObserver<JobResponse> jobObs = new ResponseObserver<>();
         jobService.createJob(CreateJobRequest.newBuilder()
@@ -48,6 +63,16 @@ class ServiceIntegrationTest {
                 .build(), jobObs);
         JobResponse job = jobObs.value;
         Assertions.assertEquals("CREATED", job.getStatus());
+
+        // update job
+        ResponseObserver<JobResponse> jobUpdateObs = new ResponseObserver<>();
+        jobService.updateJob(UpdateJobRequest.newBuilder()
+                .setJobId(job.getJobId())
+                .setDescription("Updated")
+                .setStatus("OPEN")
+                .build(), jobUpdateObs);
+        JobResponse updatedJob = jobUpdateObs.value;
+        Assertions.assertEquals("OPEN", updatedJob.getStatus());
 
         // schedule interview
         ResponseObserver<InterviewResponse> interviewObs = new ResponseObserver<>();
@@ -68,6 +93,14 @@ class ServiceIntegrationTest {
         InterviewResponse confirmed = confirmObs.value;
         Assertions.assertEquals("CONFIRMED", confirmed.getStatus());
 
+        // complete interview
+        ResponseObserver<InterviewResponse> completeObs = new ResponseObserver<>();
+        interviewService.completeInterview(InterviewRequest.newBuilder()
+                .setInterviewId(interview.getInterviewId())
+                .build(), completeObs);
+        InterviewResponse completed = completeObs.value;
+        Assertions.assertEquals("COMPLETED", completed.getStatus());
+
         // list interviews by candidate
         ResponseObserver<InterviewsResponse> listObs = new ResponseObserver<>();
         interviewService.getInterviewsByCandidate(GetInterviewsByCandidateRequest.newBuilder()
@@ -75,6 +108,30 @@ class ServiceIntegrationTest {
                 .build(), listObs);
         InterviewsResponse interviews = listObs.value;
         Assertions.assertEquals(1, interviews.getInterviewsCount());
+
+        // delete interview
+        ResponseObserver<InterviewResponse> delInterviewObs = new ResponseObserver<>();
+        interviewService.deleteInterview(InterviewRequest.newBuilder()
+                .setInterviewId(interview.getInterviewId())
+                .build(), delInterviewObs);
+        InterviewResponse deletedInterview = delInterviewObs.value;
+        Assertions.assertEquals("DELETED", deletedInterview.getStatus());
+
+        // delete candidate
+        ResponseObserver<CandidateResponse> delCandObs = new ResponseObserver<>();
+        candidateService.deleteCandidate(CandidateRequest.newBuilder()
+                .setCandidateId(candidate.getCandidateId())
+                .build(), delCandObs);
+        CandidateResponse deletedCand = delCandObs.value;
+        Assertions.assertEquals("DELETED", deletedCand.getStatus());
+
+        // delete job
+        ResponseObserver<JobResponse> delJobObs = new ResponseObserver<>();
+        jobService.deleteJob(JobRequest.newBuilder()
+                .setJobId(job.getJobId())
+                .build(), delJobObs);
+        JobResponse deletedJob = delJobObs.value;
+        Assertions.assertEquals("DELETED", deletedJob.getStatus());
     }
 
     /** Simple StreamObserver capturing the last value. */

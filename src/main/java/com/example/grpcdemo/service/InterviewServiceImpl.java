@@ -6,6 +6,7 @@ import com.example.grpcdemo.model.Interview;
 import com.example.grpcdemo.proto.ConfirmInterviewRequest;
 import com.example.grpcdemo.proto.GetInterviewsByCandidateRequest;
 import com.example.grpcdemo.proto.GetInterviewsByJobRequest;
+import com.example.grpcdemo.proto.InterviewRequest;
 import com.example.grpcdemo.proto.InterviewResponse;
 import com.example.grpcdemo.proto.InterviewServiceGrpc;
 import com.example.grpcdemo.proto.InterviewsResponse;
@@ -70,6 +71,53 @@ public class InterviewServiceImpl extends InterviewServiceGrpc.InterviewServiceI
                         new InterviewCompletedEvent(updated.getId(), updated.getCandidateId()));
             }
         }
+    }
+
+    @Override
+    public void getInterview(InterviewRequest request, StreamObserver<InterviewResponse> responseObserver) {
+        InterviewResponse response = repository.findById(request.getInterviewId())
+                .map(this::toResponse)
+                .orElse(InterviewResponse.newBuilder()
+                        .setInterviewId(request.getInterviewId())
+                        .setStatus("NOT_FOUND")
+                        .build());
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void completeInterview(InterviewRequest request, StreamObserver<InterviewResponse> responseObserver) {
+        Interview interview = repository.findById(request.getInterviewId()).orElse(null);
+        if (interview == null) {
+            responseObserver.onNext(InterviewResponse.newBuilder()
+                    .setInterviewId(request.getInterviewId())
+                    .setStatus("NOT_FOUND")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+        interview.setStatus("COMPLETED");
+        Interview updated = repository.save(interview);
+        responseObserver.onNext(toResponse(updated));
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void deleteInterview(InterviewRequest request, StreamObserver<InterviewResponse> responseObserver) {
+        InterviewResponse response = repository.findById(request.getInterviewId())
+                .map(interview -> {
+                    repository.delete(interview);
+                    return InterviewResponse.newBuilder()
+                            .setInterviewId(request.getInterviewId())
+                            .setStatus("DELETED")
+                            .build();
+                })
+                .orElse(InterviewResponse.newBuilder()
+                        .setInterviewId(request.getInterviewId())
+                        .setStatus("NOT_FOUND")
+                        .build());
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
     }
 
     @Override
