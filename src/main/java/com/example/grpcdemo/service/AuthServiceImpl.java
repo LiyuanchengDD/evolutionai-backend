@@ -26,18 +26,25 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
     @Override
     public void registerUser(RegisterUserRequest request, StreamObserver<UserResponse> responseObserver) {
-        String userId = UUID.randomUUID().toString();
-        String hashedPassword = passwordEncoder.encode(request.getPassword());
-        UserAccountEntity user = new UserAccountEntity(userId, request.getUsername(), hashedPassword, request.getRole());
-        userRepository.save(user);
+        userRepository.findByUsername(request.getUsername())
+                .ifPresentOrElse(existing -> responseObserver.onError(
+                                Status.ALREADY_EXISTS
+                                        .withDescription("Username already registered")
+                                        .asRuntimeException()),
+                        () -> {
+                            String userId = UUID.randomUUID().toString();
+                            String hashedPassword = passwordEncoder.encode(request.getPassword());
+                            UserAccountEntity user = new UserAccountEntity(userId, request.getUsername(), hashedPassword, request.getRole());
+                            userRepository.save(user);
 
-        UserResponse response = UserResponse.newBuilder()
-                .setUserId(userId)
-                .setUsername(request.getUsername())
-                .setRole(request.getRole())
-                .build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+                            UserResponse response = UserResponse.newBuilder()
+                                    .setUserId(userId)
+                                    .setUsername(request.getUsername())
+                                    .setRole(request.getRole())
+                                    .build();
+                            responseObserver.onNext(response);
+                            responseObserver.onCompleted();
+                        });
     }
 
     @Override
