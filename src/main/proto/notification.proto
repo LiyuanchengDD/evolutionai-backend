@@ -7,6 +7,8 @@ option java_outer_classname = "NotificationProto";
 package notification;
 
 service NotificationService {
+  // Sends an invitation email to the specified address.
+  // Returns INTERNAL status if the email cannot be sent.
   rpc SendInvitation (SendInvitationRequest) returns (SendInvitationResponse);
 }
 
@@ -17,5 +19,6 @@ message SendInvitationRequest {
 }
 
 message SendInvitationResponse {
+  // True if the email was sent successfully. On failure an INTERNAL gRPC status is returned instead.
   bool success = 1;
 }
