@@ -121,6 +121,53 @@ public class InterviewServiceImpl extends InterviewServiceGrpc.InterviewServiceI
     }
 
     @Override
+    public void getInterview(InterviewRequest request, StreamObserver<InterviewResponse> responseObserver) {
+        InterviewResponse response = repository.findById(request.getInterviewId())
+                .map(this::toResponse)
+                .orElse(InterviewResponse.newBuilder()
+                        .setInterviewId(request.getInterviewId())
+                        .setStatus("NOT_FOUND")
+                        .build());
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void completeInterview(InterviewRequest request, StreamObserver<InterviewResponse> responseObserver) {
+        Interview interview = repository.findById(request.getInterviewId()).orElse(null);
+        if (interview == null) {
+            responseObserver.onNext(InterviewResponse.newBuilder()
+                    .setInterviewId(request.getInterviewId())
+                    .setStatus("NOT_FOUND")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+        interview.setStatus("COMPLETED");
+        Interview updated = repository.save(interview);
+        responseObserver.onNext(toResponse(updated));
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void deleteInterview(InterviewRequest request, StreamObserver<InterviewResponse> responseObserver) {
+        InterviewResponse response = repository.findById(request.getInterviewId())
+                .map(interview -> {
+                    repository.delete(interview);
+                    return InterviewResponse.newBuilder()
+                            .setInterviewId(request.getInterviewId())
+                            .setStatus("DELETED")
+                            .build();
+                })
+                .orElse(InterviewResponse.newBuilder()
+                        .setInterviewId(request.getInterviewId())
+                        .setStatus("NOT_FOUND")
+                        .build());
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    @Override
     public void getInterviewsByCandidate(GetInterviewsByCandidateRequest request, StreamObserver<InterviewsResponse> responseObserver) {
         List<InterviewResponse> list = repository.findByCandidateId(request.getCandidateId()).stream()
                 .map(this::toResponse)
