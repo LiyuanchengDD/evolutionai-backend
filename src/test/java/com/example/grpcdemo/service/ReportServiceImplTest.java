@@ -76,6 +76,23 @@ class ReportServiceImplTest {
         assertEquals(Status.Code.NOT_FOUND, Status.fromThrowable(observer.error).getCode());
     }
 
+    @Test
+    void getReport_returnsPersistedReport() {
+        ReportEntity entity = new ReportEntity("r2", "int2", "content", 3.5f, "great", 123L);
+        when(reportRepository.findById("r2")).thenReturn(Optional.of(entity));
+        TestObserver observer = new TestObserver();
+
+        service.getReport(GetReportRequest.newBuilder().setReportId("r2").build(), observer);
+
+        assertNotNull(observer.value);
+        assertNull(observer.error);
+        assertEquals("r2", observer.value.getReportId());
+        assertEquals("int2", observer.value.getInterviewId());
+        assertEquals("content", observer.value.getContent());
+        assertEquals(3.5f, observer.value.getScore());
+        assertEquals("great", observer.value.getEvaluatorComment());
+    }
+
     private static class TestObserver implements StreamObserver<ReportResponse> {
         ReportResponse value;
         Throwable error;

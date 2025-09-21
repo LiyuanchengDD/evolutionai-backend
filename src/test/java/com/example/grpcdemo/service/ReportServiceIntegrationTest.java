@@ -7,6 +7,7 @@ import com.example.grpcdemo.proto.ReportResponse;
 import com.example.grpcdemo.repository.ReportRepository;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,6 +30,11 @@ class ReportServiceIntegrationTest {
     @MockBean
     private AiEvaluationClient aiEvaluationClient;
 
+    @AfterEach
+    void cleanDatabase() {
+        repository.deleteAll();
+    }
+
     @Test
     void generateReport_persistsToDatabase() {
         when(aiEvaluationClient.evaluate("int1"))
@@ -45,6 +51,28 @@ class ReportServiceIntegrationTest {
         TestObserver getObserver = new TestObserver();
         service.getReport(GetReportRequest.newBuilder().setReportId(observer.value.getReportId()).build(), getObserver);
         assertEquals("content", getObserver.value.getContent());
+    }
+
+    @Test
+    void reportIsRetrievableAfterServiceRecreation() {
+        when(aiEvaluationClient.evaluate("int2"))
+                .thenReturn(new EvaluationResult("analysis", 4.2f, "solid candidate"));
+
+        TestObserver observer = new TestObserver();
+        service.generateReport(GenerateReportRequest.newBuilder().setInterviewId("int2").build(), observer);
+
+        assertNotNull(observer.value);
+        ReportServiceImpl newInstance = new ReportServiceImpl(repository, aiEvaluationClient);
+        TestObserver secondObserver = new TestObserver();
+        newInstance.getReport(GetReportRequest.newBuilder()
+                .setReportId(observer.value.getReportId())
+                .build(), secondObserver);
+
+        assertNull(secondObserver.error);
+        assertNotNull(secondObserver.value);
+        assertEquals("analysis", secondObserver.value.getContent());
+        assertEquals(4.2f, secondObserver.value.getScore());
+        assertEquals("solid candidate", secondObserver.value.getEvaluatorComment());
     }
 
     @Test
