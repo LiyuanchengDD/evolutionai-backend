@@ -2,6 +2,7 @@ package com.example.grpcdemo.service;
 
 import com.example.grpcdemo.entity.ReportEntity;
 import com.example.grpcdemo.proto.GenerateReportRequest;
+import com.example.grpcdemo.proto.GetReportRequest;
 import com.example.grpcdemo.proto.ReportResponse;
 import com.example.grpcdemo.repository.ReportRepository;
 import io.grpc.Status;
@@ -10,6 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -59,6 +62,18 @@ class ReportServiceImplTest {
         assertNotNull(observer.error);
         assertEquals(Status.Code.INTERNAL, Status.fromThrowable(observer.error).getCode());
         verify(reportRepository, never()).save(any());
+    }
+
+    @Test
+    void getReport_notFoundReturnsError() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.empty());
+        TestObserver observer = new TestObserver();
+
+        service.getReport(GetReportRequest.newBuilder().setReportId("r1").build(), observer);
+
+        assertNull(observer.value);
+        assertNotNull(observer.error);
+        assertEquals(Status.Code.NOT_FOUND, Status.fromThrowable(observer.error).getCode());
     }
 
     private static class TestObserver implements StreamObserver<ReportResponse> {
