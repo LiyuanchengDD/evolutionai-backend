@@ -35,6 +35,7 @@ class AuthServiceImplTest {
 
     @Test
     void registerUser_persistsHashedPassword() {
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.empty());
         when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         TestObserver observer = new TestObserver();
 
@@ -56,6 +57,25 @@ class AuthServiceImplTest {
         assertEquals("ADMIN", saved.getRole());
         assertNotEquals("pa55w0rd", saved.getPasswordHash());
         assertTrue(passwordEncoder.matches("pa55w0rd", saved.getPasswordHash()));
+    }
+
+    @Test
+    void registerUser_rejectsDuplicateUsername() {
+        when(userRepository.findByUsername("alice"))
+                .thenReturn(Optional.of(new UserAccountEntity("existing-id", "alice", "hash", "ADMIN")));
+        TestObserver observer = new TestObserver();
+
+        RegisterUserRequest request = RegisterUserRequest.newBuilder()
+                .setUsername("alice")
+                .setPassword("pa55w0rd")
+                .setRole("ADMIN")
+                .build();
+        service.registerUser(request, observer);
+
+        assertNull(observer.value);
+        assertNotNull(observer.error);
+        assertEquals(Status.Code.ALREADY_EXISTS, Status.fromThrowable(observer.error).getCode());
+        verify(userRepository, never()).save(any());
     }
 
     @Test
