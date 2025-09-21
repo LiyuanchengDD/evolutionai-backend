@@ -1,29 +1,35 @@
 package com.example.grpcdemo.service;
 
+import com.example.grpcdemo.entity.UserAccountEntity;
 import com.example.grpcdemo.proto.AuthServiceGrpc;
 import com.example.grpcdemo.proto.LoginRequest;
 import com.example.grpcdemo.proto.RegisterUserRequest;
 import com.example.grpcdemo.proto.UserResponse;
+import com.example.grpcdemo.repository.UserAccountRepository;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
-import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @GrpcService
 public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
-    private final Map<String, RegisteredUser> userStore = new ConcurrentHashMap<>();
+    private final UserAccountRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public AuthServiceImpl(UserAccountRepository userRepository, PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     @Override
     public void registerUser(RegisterUserRequest request, StreamObserver<UserResponse> responseObserver) {
         String userId = UUID.randomUUID().toString();
-        String hashedPassword = BCrypt.hashpw(request.getPassword(), BCrypt.gensalt());
-        RegisteredUser user = new RegisteredUser(userId, request.getUsername(), hashedPassword, request.getRole());
-        userStore.put(request.getUsername(), user);
+        String hashedPassword = passwordEncoder.encode(request.getPassword());
+        UserAccountEntity user = new UserAccountEntity(userId, request.getUsername(), hashedPassword, request.getRole());
+        userRepository.save(user);
 
         UserResponse response = UserResponse.newBuilder()
                 .setUserId(userId)
@@ -36,22 +42,19 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
     @Override
     public void loginUser(LoginRequest request, StreamObserver<UserResponse> responseObserver) {
-        RegisteredUser user = userStore.get(request.getUsername());
-        if (user != null && BCrypt.checkpw(request.getPassword(), user.hashedPassword())) {
-            String token = JwtUtil.generateToken(user.userId(), user.username(), user.role());
+        userRepository.findByUsername(request.getUsername())
+                .filter(user -> passwordEncoder.matches(request.getPassword(), user.getPasswordHash()))
+                .ifPresentOrElse(user -> {
+                    String token = JwtUtil.generateToken(user.getUserId(), user.getUsername(), user.getRole());
 
-            UserResponse response = UserResponse.newBuilder()
-                    .setUserId(user.userId())
-                    .setUsername(user.username())
-                    .setRole(user.role())
-                    .setAccessToken(token)
-                    .build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-        } else {
-            responseObserver.onError(Status.UNAUTHENTICATED.asRuntimeException());
-        }
+                    UserResponse response = UserResponse.newBuilder()
+                            .setUserId(user.getUserId())
+                            .setUsername(user.getUsername())
+                            .setRole(user.getRole())
+                            .setAccessToken(token)
+                            .build();
+                    responseObserver.onNext(response);
+                    responseObserver.onCompleted();
+                }, () -> responseObserver.onError(Status.UNAUTHENTICATED.asRuntimeException()));
     }
-
-    private record RegisteredUser(String userId, String username, String hashedPassword, String role) {}
 }
