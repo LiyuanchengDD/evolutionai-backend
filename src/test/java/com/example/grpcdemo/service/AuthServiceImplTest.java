@@ -6,124 +6,138 @@ import com.example.grpcdemo.proto.RegisterUserRequest;
 import com.example.grpcdemo.proto.UserResponse;
 import com.example.grpcdemo.repository.UserAccountRepository;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
+@DataJpaTest
 class AuthServiceImplTest {
 
+    @Autowired
     private UserAccountRepository userRepository;
-    private PasswordEncoder passwordEncoder;
-    private AuthServiceImpl service;
+
+    private AuthServiceImpl authService;
+
+    private BCryptPasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
-        userRepository = Mockito.mock(UserAccountRepository.class);
         passwordEncoder = new BCryptPasswordEncoder();
-        service = new AuthServiceImpl(userRepository, passwordEncoder);
+        authService = new AuthServiceImpl(userRepository, passwordEncoder);
     }
 
     @Test
-    void registerUser_persistsHashedPassword() {
-        when(userRepository.findByUsername("alice")).thenReturn(Optional.empty());
-        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        TestObserver observer = new TestObserver();
-
-        RegisterUserRequest request = RegisterUserRequest.newBuilder()
-                .setUsername("alice")
-                .setPassword("pa55w0rd")
+    void loginUserReturnsTokenWhenCredentialsValid() {
+        RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
+                .setUsername("valid-user")
+                .setPassword("strong-password")
                 .setRole("ADMIN")
                 .build();
-        service.registerUser(request, observer);
 
-        assertNull(observer.error);
-        assertNotNull(observer.value);
-        assertEquals("alice", observer.value.getUsername());
-        ArgumentCaptor<UserAccountEntity> captor = ArgumentCaptor.forClass(UserAccountEntity.class);
-        verify(userRepository).save(captor.capture());
-        UserAccountEntity saved = captor.getValue();
-        assertEquals(observer.value.getUserId(), saved.getUserId());
-        assertEquals("alice", saved.getUsername());
-        assertEquals("ADMIN", saved.getRole());
-        assertNotEquals("pa55w0rd", saved.getPasswordHash());
-        assertTrue(passwordEncoder.matches("pa55w0rd", saved.getPasswordHash()));
+        TestStreamObserver<UserResponse> registerObserver = new TestStreamObserver<>();
+        authService.registerUser(registerRequest, registerObserver);
+
+        assertThat(registerObserver.getError()).isNull();
+        assertThat(registerObserver.isCompleted()).isTrue();
+        assertThat(registerObserver.getValues()).hasSize(1);
+
+        UserResponse registered = registerObserver.getValues().get(0);
+        assertThat(registered.getUserId()).isNotBlank();
+        assertThat(registered.getUsername()).isEqualTo("valid-user");
+        assertThat(registered.getRole()).isEqualTo("ADMIN");
+
+        userRepository.flush();
+        UserAccountEntity persisted = userRepository.findByUsername("valid-user").orElseThrow();
+        assertThat(persisted.getPasswordHash()).isNotEqualTo("strong-password");
+        assertThat(passwordEncoder.matches("strong-password", persisted.getPasswordHash())).isTrue();
+
+        TestStreamObserver<UserResponse> loginObserver = new TestStreamObserver<>();
+        LoginRequest loginRequest = LoginRequest.newBuilder()
+                .setUsername("valid-user")
+                .setPassword("strong-password")
+                .build();
+
+        authService.loginUser(loginRequest, loginObserver);
+
+        assertThat(loginObserver.getError()).isNull();
+        assertThat(loginObserver.isCompleted()).isTrue();
+        assertThat(loginObserver.getValues()).hasSize(1);
+
+        UserResponse loginResponse = loginObserver.getValues().get(0);
+        assertThat(loginResponse.getUserId()).isEqualTo(registered.getUserId());
+        assertThat(loginResponse.getUsername()).isEqualTo("valid-user");
+        assertThat(loginResponse.getRole()).isEqualTo("ADMIN");
+        assertThat(loginResponse.getAccessToken()).isNotBlank();
     }
 
     @Test
-    void registerUser_rejectsDuplicateUsername() {
-        when(userRepository.findByUsername("alice"))
-                .thenReturn(Optional.of(new UserAccountEntity("existing-id", "alice", "hash", "ADMIN")));
-        TestObserver observer = new TestObserver();
-
-        RegisterUserRequest request = RegisterUserRequest.newBuilder()
-                .setUsername("alice")
-                .setPassword("pa55w0rd")
-                .setRole("ADMIN")
+    void loginUserWithInvalidCredentialsReturnsUnauthenticated() {
+        RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
+                .setUsername("invalid-user")
+                .setPassword("correct-password")
+                .setRole("USER")
                 .build();
-        service.registerUser(request, observer);
 
-        assertNull(observer.value);
-        assertNotNull(observer.error);
-        assertEquals(Status.Code.ALREADY_EXISTS, Status.fromThrowable(observer.error).getCode());
-        verify(userRepository, never()).save(any());
+        TestStreamObserver<UserResponse> registerObserver = new TestStreamObserver<>();
+        authService.registerUser(registerRequest, registerObserver);
+        assertThat(registerObserver.getError()).isNull();
+
+        TestStreamObserver<UserResponse> loginObserver = new TestStreamObserver<>();
+        LoginRequest loginRequest = LoginRequest.newBuilder()
+                .setUsername("invalid-user")
+                .setPassword("wrong-password")
+                .build();
+
+        authService.loginUser(loginRequest, loginObserver);
+
+        assertThat(loginObserver.getValues()).isEmpty();
+        assertThat(loginObserver.isCompleted()).isFalse();
+        assertThat(loginObserver.getError()).isInstanceOf(StatusRuntimeException.class);
+        StatusRuntimeException exception = (StatusRuntimeException) loginObserver.getError();
+        assertThat(Status.fromThrowable(exception).getCode()).isEqualTo(Status.UNAUTHENTICATED.getCode());
     }
 
     @Test
-    void loginUser_returnsTokenWhenPasswordMatches() {
-        String hashed = passwordEncoder.encode("secret");
-        when(userRepository.findByUsername("alice"))
-                .thenReturn(Optional.of(new UserAccountEntity("id-1", "alice", hashed, "ADMIN")));
-        TestObserver observer = new TestObserver();
-
-        LoginRequest request = LoginRequest.newBuilder()
-                .setUsername("alice")
-                .setPassword("secret")
+    void registerUserWithDuplicateUsernameReturnsAlreadyExists() {
+        RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
+                .setUsername("duplicate-user")
+                .setPassword("password")
+                .setRole("USER")
                 .build();
-        service.loginUser(request, observer);
 
-        assertNull(observer.error);
-        assertNotNull(observer.value);
-        assertEquals("id-1", observer.value.getUserId());
-        assertEquals("alice", observer.value.getUsername());
-        assertEquals("ADMIN", observer.value.getRole());
-        assertFalse(observer.value.getAccessToken().isEmpty());
+        TestStreamObserver<UserResponse> firstObserver = new TestStreamObserver<>();
+        authService.registerUser(registerRequest, firstObserver);
+
+        assertThat(firstObserver.getError()).isNull();
+        assertThat(firstObserver.getValues()).hasSize(1);
+
+        TestStreamObserver<UserResponse> duplicateObserver = new TestStreamObserver<>();
+        authService.registerUser(registerRequest, duplicateObserver);
+
+        assertThat(duplicateObserver.getValues()).isEmpty();
+        assertThat(duplicateObserver.isCompleted()).isFalse();
+        assertThat(duplicateObserver.getError()).isInstanceOf(StatusRuntimeException.class);
+        StatusRuntimeException exception = (StatusRuntimeException) duplicateObserver.getError();
+        assertThat(Status.fromThrowable(exception).getCode()).isEqualTo(Status.ALREADY_EXISTS.getCode());
     }
 
-    @Test
-    void loginUser_returnsUnauthenticatedWhenPasswordDoesNotMatch() {
-        String hashed = passwordEncoder.encode("right-password");
-        when(userRepository.findByUsername("alice"))
-                .thenReturn(Optional.of(new UserAccountEntity("id-1", "alice", hashed, "ADMIN")));
-        TestObserver observer = new TestObserver();
-
-        LoginRequest request = LoginRequest.newBuilder()
-                .setUsername("alice")
-                .setPassword("wrong")
-                .build();
-        service.loginUser(request, observer);
-
-        assertNull(observer.value);
-        assertNotNull(observer.error);
-        assertEquals(Status.Code.UNAUTHENTICATED, Status.fromThrowable(observer.error).getCode());
-    }
-
-    private static class TestObserver implements StreamObserver<UserResponse> {
-        private UserResponse value;
+    private static final class TestStreamObserver<T> implements StreamObserver<T> {
+        private final List<T> values = new ArrayList<>();
         private Throwable error;
+        private boolean completed;
 
         @Override
-        public void onNext(UserResponse value) {
-            this.value = value;
+        public void onNext(T value) {
+            values.add(value);
         }
 
         @Override
@@ -133,7 +147,19 @@ class AuthServiceImplTest {
 
         @Override
         public void onCompleted() {
-            // no-op
+            this.completed = true;
+        }
+
+        List<T> getValues() {
+            return values;
+        }
+
+        Throwable getError() {
+            return error;
+        }
+
+        boolean isCompleted() {
+            return completed;
         }
     }
 }
