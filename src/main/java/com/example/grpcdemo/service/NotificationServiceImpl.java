@@ -9,6 +9,7 @@ import net.devh.boot.grpc.server.service.GrpcService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
@@ -23,6 +24,7 @@ public class NotificationServiceImpl extends NotificationServiceGrpc.Notificatio
     @Override
     public void sendInvitation(SendInvitationRequest request, StreamObserver<SendInvitationResponse> responseObserver) {
         try {
+            // Map request fields to mail properties
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(request.getEmail());
             message.setSubject(request.getSubject());
@@ -35,7 +37,7 @@ public class NotificationServiceImpl extends NotificationServiceGrpc.Notificatio
                     .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (Exception e) {
+        } catch (MailException e) {
             logger.error("Failed to send invitation email to {}", request.getEmail(), e);
             responseObserver.onError(Status.INTERNAL.asRuntimeException());
         }
