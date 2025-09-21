@@ -10,35 +10,26 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 
-import java.util.UUID;
-
 @GrpcService
 public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
 
     private final ReportRepository reportRepository;
-    private final AiEvaluationClient aiEvaluationClient;
+    private final ReportGenerator reportGenerator;
 
-    public ReportServiceImpl(ReportRepository reportRepository, AiEvaluationClient aiEvaluationClient) {
+    public ReportServiceImpl(ReportRepository reportRepository, ReportGenerator reportGenerator) {
         this.reportRepository = reportRepository;
-        this.aiEvaluationClient = aiEvaluationClient;
+        this.reportGenerator = reportGenerator;
     }
 
     @Override
     public void generateReport(GenerateReportRequest request,
                                StreamObserver<ReportResponse> responseObserver) {
-        String reportId = UUID.randomUUID().toString();
         try {
-            EvaluationResult result = aiEvaluationClient.evaluate(request.getInterviewId());
-            ReportEntity entity = new ReportEntity(
-                    reportId,
-                    request.getInterviewId(),
-                    result.content(),
-                    result.score(),
-                    result.comment(),
-                    System.currentTimeMillis());
-            reportRepository.save(entity);
+            ReportEntity entity = reportGenerator.generateAndStore(request.getInterviewId());
             responseObserver.onNext(toResponse(entity));
             responseObserver.onCompleted();
+        } catch (InterviewNotFoundException e) {
+            responseObserver.onError(Status.NOT_FOUND.withDescription(e.getMessage()).asRuntimeException());
         } catch (Exception e) {
             responseObserver.onError(Status.INTERNAL.withDescription("Failed to generate report").asRuntimeException());
         }
