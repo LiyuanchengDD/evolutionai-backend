@@ -10,6 +10,8 @@ package job;
 service JobService {
   rpc GetJob (JobRequest) returns (JobResponse);
   rpc CreateJob (CreateJobRequest) returns (JobResponse);
+  rpc UpdateJob (UpdateJobRequest) returns (JobResponse);
+  rpc DeleteJob (JobRequest) returns (JobResponse);
   rpc ListJobs (ListJobsRequest) returns (ListJobsResponse);
 }
 
@@ -24,6 +26,14 @@ message JobRequest {
 message CreateJobRequest {
   string jobTitle = 1;
   string description = 2;
+}
+
+// UpdateJob 请求
+message UpdateJobRequest {
+  string jobId = 1;
+  string jobTitle = 2;
+  string description = 3;
+  string status = 4;
 }
 
 // Job 响应
