@@ -38,8 +38,20 @@ public class NotificationServiceImpl extends NotificationServiceGrpc.Notificatio
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (MailException e) {
-            logger.error("Failed to send invitation email to {}", request.getEmail(), e);
-            responseObserver.onError(Status.INTERNAL.asRuntimeException());
+            String baseMessage = String.format("Failed to send invitation email to %s with subject '%s'",
+                    request.getEmail(), request.getSubject());
+            String detailedMessage = baseMessage;
+            if (e.getMessage() != null && !e.getMessage().isBlank()) {
+                detailedMessage = baseMessage + ". Cause: " + e.getMessage();
+            }
+
+            logger.error("Failed to send invitation email to {} with subject '{}'. Cause: {}",
+                    request.getEmail(), request.getSubject(), e.getMessage(), e);
+            responseObserver.onError(
+                    Status.INTERNAL
+                            .withDescription(detailedMessage)
+                            .withCause(e)
+                            .asRuntimeException());
         }
     }
 }
