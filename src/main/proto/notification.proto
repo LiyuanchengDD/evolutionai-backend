@@ -6,14 +6,20 @@ option java_outer_classname = "NotificationProto";
 
 package notification;
 
+// 发送面试邀约邮件
 service NotificationService {
   rpc SendInvitation (SendInvitationRequest) returns (SendInvitationResponse);
 }
 
+// ====== 请求与响应 ======
 message SendInvitationRequest {
-  string email = 1;
-  string subject = 2;
-  string content = 3;
+  string email   = 1; // 收件人
+  string subject = 2; // 邮件标题
+  string content = 3; // 邮件内容（可放纯文本或HTML）
 }
 
+message SendInvitationResponse {
+  bool   success   = 1; // 是否发送成功
+  string messageId = 2; // 可选：邮件服务返回的ID
+  string error     = 3; // 可选：失败原因（当 success=false）
 }

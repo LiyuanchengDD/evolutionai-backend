@@ -93,28 +93,6 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Mail support -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-crypto</artifactId>
-        </dependency>
-
-        <!-- Mail support -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-crypto</artifactId>
-        </dependency>
-
         <!-- Protobuf -->
         <dependency>
             <groupId>com.google.protobuf</groupId>
@@ -144,41 +122,49 @@
     </dependencies>
 
     <build>
-        <extensions>
-            <extension>
-                <groupId>kr.motd.maven</groupId>
-                <artifactId>os-maven-plugin</artifactId>
-                <version>1.7.0</version>
-            </extension>
-        </extensions>
+  <!-- 建议加上，用于解析 ${os.detected.classifier}（Mac M 芯片会得到 osx-aarch_64） -->
+  <extensions>
+    <extension>
+      <groupId>kr.motd.maven</groupId>
+      <artifactId>os-maven-plugin</artifactId>
+      <version>1.7.1</version>
+    </extension>
+  </extensions>
 
-        <plugins>
-            <!-- Protobuf 编译插件 -->
-            <plugin>
-                <groupId>org.xolstice.maven.plugins</groupId>
-                <artifactId>protobuf-maven-plugin</artifactId>
-                <version>0.6.1</version>
-                <configuration>
-                    <protocArtifact>
-                        com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
-                    </protocArtifact>
-                    <pluginId>grpc-java</pluginId>
-                    <pluginArtifact>
-                        io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
-                    </pluginArtifact>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>compile</goal>
-                            <goal>compile-custom</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
+  <plugins>
+    <!-- Protobuf / gRPC 代码生成 -->
+    <plugin>
+      <groupId>org.xolstice.maven.plugins</groupId>
+      <artifactId>protobuf-maven-plugin</artifactId>
+      <version>0.6.1</version>
+      <configuration>
+        <protocArtifact>
+          com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
+        </protocArtifact>
+        <pluginId>grpc-java</pluginId>
+        <pluginArtifact>
+          io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
+        </pluginArtifact>
+      </configuration>
+      <executions>
+        <execution>
+          <goals>
+            <goal>compile</goal>         <!-- 生成 protobuf Java -->
+            <goal>compile-custom</goal>  <!-- 生成 gRPC stub -->
+          </goals>
+        </execution>
+      </executions>
+    </plugin>
+
+    <!-- 编译器设置（Java 17） -->
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-compiler-plugin</artifactId>
+      <version>3.11.0</version>
+      <configuration>
+        <release>17</release>
+      </configuration>
+    </plugin>
+  </plugins>
+</build>
 </project>

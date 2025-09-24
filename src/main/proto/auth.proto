@@ -6,11 +6,54 @@ option java_outer_classname = "AuthProto";
 
 package auth;
 
-service AuthService {
-  rpc RegisterUser (RegisterUserRequest) returns (UserResponse);
-  rpc LoginUser (LoginRequest) returns (UserResponse);
+// --- 统一的用户类型（企业/工程师） ---
+enum UserType {
+  USER_TYPE_UNSPECIFIED = 0;
+  ENTERPRISE = 1; // 企业端(B端)
+  ENGINEER   = 2; // 工程师端(C端)
 }
 
-message UserResponse {
-  string userId = 1;
+// --- 认证服务 ---
+service AuthService {
+  // 注册（邮箱 + 验证码）
+  rpc RegisterUser (RegisterUserRequest) returns (AuthResponse);
+
+  // 登录（邮箱 + 验证码）
+  rpc Login (LoginRequest) returns (AuthResponse);
+
+  // 发送验证码（可选）
+  rpc SendVerificationCode (SendCodeRequest) returns (SendCodeResponse);
+}
+
+// --- 请求/响应消息 ---
+message RegisterUserRequest {
+  string  email              = 1;
+  string  verification_code  = 2;
+  UserType user_type         = 3; // ENTERPRISE/ENGINEER
+  string  password           = 4; // 如无需密码，可忽略
+}
+
+message LoginRequest {
+  string  email              = 1;
+  string  verification_code  = 2;
+  UserType user_type         = 3;
+}
+
+message SendCodeRequest {
+  string  email              = 1;
+  UserType user_type         = 2;
+}
+
+message SendCodeResponse {
+  bool   success   = 1;
+  string error     = 2; // 失败原因(可选)
+}
+
+message AuthResponse {
+  bool   success       = 1;
+  string user_id       = 2;
+  string access_token  = 3;
+  int64  expires_at    = 4; // epoch millis
+  string refresh_token = 5; // 可选
+  string error         = 6; // 失败原因(可选)
 }
