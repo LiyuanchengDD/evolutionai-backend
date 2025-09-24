@@ -1,5 +1,4 @@
 package com.example.grpcdemo.service;
-
 import com.example.grpcdemo.proto.GenerateReportRequest;
 import com.example.grpcdemo.proto.GetReportRequest;
 import com.example.grpcdemo.proto.ReportResponse;
@@ -17,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
 
     private final Map<String, ReportResponse> reportStore = new ConcurrentHashMap<>();
-
+  
     @Override
     public void generateReport(GenerateReportRequest request,
                                StreamObserver<ReportResponse> responseObserver) {
@@ -33,11 +32,11 @@ public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
         reportStore.put(reportId, response);
         responseObserver.onNext(response);
         responseObserver.onCompleted();
-    }
 
     @Override
     public void getReport(GetReportRequest request,
                           StreamObserver<ReportResponse> responseObserver) {
+
         ReportResponse response = reportStore.get(request.getReportId());
         if (response == null) {
             responseObserver.onError(Status.NOT_FOUND.withDescription("Report not found").asRuntimeException());
@@ -45,5 +44,24 @@ public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
         }
         responseObserver.onNext(response);
         responseObserver.onCompleted();
+
+        reportRepository.findById(request.getReportId())
+                .map(this::toResponse)
+                .ifPresentOrElse(response -> {
+                    responseObserver.onNext(response);
+                    responseObserver.onCompleted();
+                }, () -> responseObserver.onError(
+                        Status.NOT_FOUND.withDescription("Report not found").asRuntimeException()));
+    }
+
+    private ReportResponse toResponse(ReportEntity entity) {
+        return ReportResponse.newBuilder()
+                .setReportId(entity.getReportId())
+                .setInterviewId(entity.getInterviewId())
+                .setContent(entity.getContent())
+                .setScore(entity.getScore())
+                .setEvaluatorComment(entity.getEvaluatorComment())
+                .setCreatedAt(entity.getCreatedAt())
+                .build();
     }
 }

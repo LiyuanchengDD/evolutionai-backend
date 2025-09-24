@@ -10,6 +10,8 @@ package candidate;
 service CandidateService {
   rpc CreateCandidate (CreateCandidateRequest) returns (CandidateResponse);
   rpc GetCandidate (CandidateRequest) returns (CandidateResponse);
+  rpc UpdateCandidate (UpdateCandidateRequest) returns (CandidateResponse);
+  rpc DeleteCandidate (CandidateRequest) returns (CandidateResponse);
   rpc ListCandidates (ListCandidatesRequest) returns (ListCandidatesResponse);
 }
 
@@ -25,6 +27,15 @@ message CreateCandidateRequest {
 // 查询候选人请求
 message CandidateRequest {
   string candidateId = 1;
+}
+
+// 更新候选人请求
+message UpdateCandidateRequest {
+  string candidateId = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+  string status = 5;
 }
 
 // 候选人响应

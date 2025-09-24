@@ -23,23 +23,6 @@
 ## gRPC Interfaces
 
 ### Auth Service
-- `rpc RequestVerificationCode(VerificationCodeRequest) returns (VerificationCodeResponse)`
-- `rpc RegisterUser(RegisterUserRequest) returns (UserResponse)`
-- `rpc LoginUser(LoginRequest) returns (UserResponse)`
-
-`VerificationCodeRequest` 字段：`email`, `role`
-
-`UserResponse` 字段：`userId`, `email`, `role`, `accessToken`, `refreshToken`
-
-#### HTTP Gateway（供前端使用）
-- 企业端：
-  - `POST /api/b/auth/send-code`
-  - `POST /api/b/auth/register`
-  - `POST /api/b/auth/login`
-- 工程师端：
-  - `POST /api/c/auth/send-code`
-  - `POST /api/c/auth/register`
-  - `POST /api/c/auth/login`
 
 ### Job Service
 - `rpc CreateJob(CreateJobRequest) returns (JobResponse)`
@@ -80,5 +63,3 @@
 `SendInvitationResponse` 字段：
 - `success`
 - `message`
-
-Each service maintains its own data store and communicates over gRPC to ensure loose coupling and scalability.
