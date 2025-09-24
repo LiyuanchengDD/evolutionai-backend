@@ -26,4 +26,3 @@ message ReportResponse {
   float score = 4;
   string evaluatorComment = 5;
   int64 createdAt = 6;
-}

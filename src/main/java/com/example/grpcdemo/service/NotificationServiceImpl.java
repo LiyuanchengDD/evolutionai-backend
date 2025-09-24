@@ -3,13 +3,10 @@ package com.example.grpcdemo.service;
 import com.example.grpcdemo.proto.NotificationServiceGrpc;
 import com.example.grpcdemo.proto.SendInvitationRequest;
 import com.example.grpcdemo.proto.SendInvitationResponse;
-import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
@@ -18,18 +15,14 @@ public class NotificationServiceImpl extends NotificationServiceGrpc.Notificatio
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
-    @Autowired
-    private JavaMailSender mailSender;
-
     @Override
     public void sendInvitation(SendInvitationRequest request, StreamObserver<SendInvitationResponse> responseObserver) {
         try {
-            // Map request fields to mail properties
+
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(request.getEmail());
             message.setSubject(request.getSubject());
-            message.setText(request.getContent());
-
+            message.setText(request.getContent())
             mailSender.send(message);
 
             logger.info("Sent invitation email to {} with subject '{}'", request.getEmail(), request.getSubject());
@@ -55,4 +48,3 @@ public class NotificationServiceImpl extends NotificationServiceGrpc.Notificatio
         }
     }
 }
-

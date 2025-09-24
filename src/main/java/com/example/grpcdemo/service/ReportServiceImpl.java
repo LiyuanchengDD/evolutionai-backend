@@ -1,14 +1,21 @@
 package com.example.grpcdemo.service;
-
-import com.example.grpcdemo.entity.ReportEntity;
 import com.example.grpcdemo.proto.GenerateReportRequest;
 import com.example.grpcdemo.proto.GetReportRequest;
 import com.example.grpcdemo.proto.ReportResponse;
 import com.example.grpcdemo.proto.ReportServiceGrpc;
-import com.example.grpcdemo.repository.ReportRepository;
 import io.grpc.Status;
+
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+@GrpcService
+public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
+
+    private final Map<String, ReportResponse> reportStore = new ConcurrentHashMap<>();
 
 @GrpcService
 public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
@@ -24,20 +31,13 @@ public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
     @Override
     public void generateReport(GenerateReportRequest request,
                                StreamObserver<ReportResponse> responseObserver) {
-        try {
-            ReportEntity entity = reportGenerator.generateAndStore(request.getInterviewId());
-            responseObserver.onNext(toResponse(entity));
-            responseObserver.onCompleted();
-        } catch (InterviewNotFoundException e) {
-            responseObserver.onError(Status.NOT_FOUND.withDescription(e.getMessage()).asRuntimeException());
-        } catch (Exception e) {
-            responseObserver.onError(Status.INTERNAL.withDescription("Failed to generate report").asRuntimeException());
-        }
+
     }
 
     @Override
     public void getReport(GetReportRequest request,
                           StreamObserver<ReportResponse> responseObserver) {
+
         reportRepository.findById(request.getReportId())
                 .map(this::toResponse)
                 .ifPresentOrElse(response -> {

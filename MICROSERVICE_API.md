@@ -23,9 +23,6 @@
 ## gRPC Interfaces
 
 ### Auth Service
-- `rpc RegisterUser(RegisterUserRequest) returns (UserResponse)`
-- `rpc LoginUser(LoginRequest) returns (UserResponse)`
-
 ### Job Service
 - `rpc CreateJob(CreateJobRequest) returns (JobResponse)`
 - `rpc GetJob(JobRequest) returns (JobResponse)`
@@ -66,4 +63,3 @@
 - `success`
 - `message`
 
-Each service maintains its own data store and communicates over gRPC to ensure loose coupling and scalability.
