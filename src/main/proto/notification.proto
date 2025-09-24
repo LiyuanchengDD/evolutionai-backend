@@ -7,7 +7,6 @@ option java_outer_classname = "NotificationProto";
 package notification;
 
 service NotificationService {
-
   rpc SendInvitation (SendInvitationRequest) returns (SendInvitationResponse);
 }
 
@@ -17,7 +16,4 @@ message SendInvitationRequest {
   string content = 3;
 }
 
-message SendInvitationResponse {
-
 }
-

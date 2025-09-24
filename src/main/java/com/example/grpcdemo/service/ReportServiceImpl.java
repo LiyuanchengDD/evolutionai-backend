@@ -16,27 +16,34 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
 
     private final Map<String, ReportResponse> reportStore = new ConcurrentHashMap<>();
-
-@GrpcService
-public class ReportServiceImpl extends ReportServiceGrpc.ReportServiceImplBase {
-
-    private final ReportRepository reportRepository;
-    private final ReportGenerator reportGenerator;
-
-    public ReportServiceImpl(ReportRepository reportRepository, ReportGenerator reportGenerator) {
-        this.reportRepository = reportRepository;
-        this.reportGenerator = reportGenerator;
-    }
-
+  
     @Override
     public void generateReport(GenerateReportRequest request,
                                StreamObserver<ReportResponse> responseObserver) {
-
-    }
+        String reportId = UUID.randomUUID().toString();
+        ReportResponse response = ReportResponse.newBuilder()
+                .setReportId(reportId)
+                .setInterviewId(request.getInterviewId())
+                .setContent("Report placeholder")
+                .setScore(0)
+                .setEvaluatorComment("")
+                .setCreatedAt(System.currentTimeMillis())
+                .build();
+        reportStore.put(reportId, response);
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
 
     @Override
     public void getReport(GetReportRequest request,
                           StreamObserver<ReportResponse> responseObserver) {
+
+        ReportResponse response = reportStore.get(request.getReportId());
+        if (response == null) {
+            responseObserver.onError(Status.NOT_FOUND.withDescription("Report not found").asRuntimeException());
+            return;
+        }
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
 
         reportRepository.findById(request.getReportId())
                 .map(this::toResponse)

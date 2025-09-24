@@ -23,6 +23,7 @@
 ## gRPC Interfaces
 
 ### Auth Service
+
 ### Job Service
 - `rpc CreateJob(CreateJobRequest) returns (JobResponse)`
 - `rpc GetJob(JobRequest) returns (JobResponse)`
@@ -62,4 +63,3 @@
 `SendInvitationResponse` 字段：
 - `success`
 - `message`
-

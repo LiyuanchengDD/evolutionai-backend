@@ -15,6 +15,13 @@ public class NotificationServiceImpl extends NotificationServiceGrpc.Notificatio
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
+
+    private final JavaMailSender mailSender;
+
+    public NotificationServiceImpl(JavaMailSender mailSender) {
+        this.mailSender = mailSender;
+    }
+  
     @Override
     public void sendInvitation(SendInvitationRequest request, StreamObserver<SendInvitationResponse> responseObserver) {
         try {
