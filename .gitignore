@@ -1,17 +1,32 @@
-<<<<<<< HEAD
-# Compiled class file
-*.class
+# Build outputs
+/target/
+**/target/
+/build/
+**/build/
 
-# Log file
+# Maven wrapper jar
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE settings
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.apt_generated/
+.factorypath/
+.springBeans/
+.sts4-cache/
+.vscode/
+
+# Logs
 *.log
+hs_err_pid*
+replay_pid*
 
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# Archives
 *.jar
 *.war
 *.nar
@@ -20,42 +35,6 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
-=======
-HELP.md
-target/
-.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
-
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
-.vscode/
->>>>>>> 7117cb7 (Initial commit: EvolutionAI backend with gRPC microservices)
+# Misc
 .DS_Store
+HELP.md
