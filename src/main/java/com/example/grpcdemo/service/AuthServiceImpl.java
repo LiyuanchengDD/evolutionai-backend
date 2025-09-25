@@ -1,54 +1,101 @@
 package com.example.grpcdemo.service;
+
+import com.example.grpcdemo.entity.UserAccountEntity;
 import com.example.grpcdemo.proto.AuthServiceGrpc;
 import com.example.grpcdemo.proto.LoginRequest;
 import com.example.grpcdemo.proto.RegisterUserRequest;
 import com.example.grpcdemo.proto.UserResponse;
-import com.example.grpcdemo.proto.VerificationCodeRequest;
-import com.example.grpcdemo.proto.VerificationCodeResponse;
+import com.example.grpcdemo.repository.UserAccountRepository;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * gRPC authentication service that persists user accounts and issues JWT tokens.
+ */
 @GrpcService
 public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
-    private final AuthManager authManager;
+    private final UserAccountRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public AuthServiceImpl(AuthManager authManager) {
-        this.authManager = authManager;
+    public AuthServiceImpl(UserAccountRepository userRepository, PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
-    public void requestVerificationCode(VerificationCodeRequest request, StreamObserver<VerificationCodeResponse> responseObserver) {
-        try {
-            AuthRole role = AuthRole.fromGrpcValue(request.getRole());
-            AuthManager.VerificationResult result = authManager.requestVerificationCode(request.getEmail(), role);
-            VerificationCodeResponse response = VerificationCodeResponse.newBuilder()
-                    .setRequestId(result.requestId())
-                    .setExpiresInSeconds(result.expiresInSeconds())
-                    .build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-        } catch (IllegalArgumentException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asRuntimeException());
-        } catch (AuthException e) {
-            handleAuthException(responseObserver, e);
-        } catch (Exception e) {
-            log.error("Unexpected error in requestVerificationCode", e);
-            responseObserver.onError(AuthErrorCode.INTERNAL_ERROR.getStatus().withDescription(e.getMessage()).asRuntimeException());
+    public void registerUser(RegisterUserRequest request, StreamObserver<UserResponse> responseObserver) {
+        String username = request.getUsername().trim();
+        String password = request.getPassword();
+        String role = request.getRole().trim();
+
+        if (username.isEmpty() || password.isEmpty() || role.isEmpty()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Username, password and role are required")
+                    .asRuntimeException());
+            return;
         }
 
-    @Override
-    public void registerUser(RegisterUserRequest request, StreamObserver<UserResponse> responseObserver) {
+        Optional<UserAccountEntity> existing = userRepository.findByUsername(username);
+        if (existing.isPresent()) {
+            responseObserver.onError(Status.ALREADY_EXISTS
+                    .withDescription("User already exists")
+                    .asRuntimeException());
+            return;
+        }
 
+        String userId = UUID.randomUUID().toString();
+        String hashedPassword = passwordEncoder.encode(password);
+        UserAccountEntity entity = new UserAccountEntity(userId, username, hashedPassword, role);
+        userRepository.save(entity);
+        log.info("Registered new user: username={}, role={}", username, role);
+
+        responseObserver.onNext(toResponse(entity));
+        responseObserver.onCompleted();
     }
 
     @Override
     public void loginUser(LoginRequest request, StreamObserver<UserResponse> responseObserver) {
+        String username = request.getUsername().trim();
+        String password = request.getPassword();
 
+        if (username.isEmpty() || password.isEmpty()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Username and password are required")
+                    .asRuntimeException());
+            return;
+        }
+
+        Optional<UserAccountEntity> existing = userRepository.findByUsername(username);
+        if (existing.isEmpty() || !passwordEncoder.matches(password, existing.get().getPasswordHash())) {
+            responseObserver.onError(Status.UNAUTHENTICATED
+                    .withDescription("Invalid username or password")
+                    .asRuntimeException());
+            return;
+        }
+
+        responseObserver.onNext(toResponse(existing.get()));
+        responseObserver.onCompleted();
+    }
+
+    private UserResponse toResponse(UserAccountEntity entity) {
+        String accessToken = JwtUtil.generateToken(entity.getUserId(), entity.getUsername(), entity.getRole());
+        String refreshToken = UUID.randomUUID().toString();
+        return UserResponse.newBuilder()
+                .setUserId(entity.getUserId())
+                .setUsername(entity.getUsername())
+                .setRole(entity.getRole())
+                .setAccessToken(accessToken)
+                .setRefreshToken(refreshToken)
+                .build();
     }
 }
