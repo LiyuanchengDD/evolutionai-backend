@@ -12,8 +12,6 @@ import net.devh.boot.grpc.server.service.GrpcService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,13 +36,7 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
         String username = request.getUsername().trim();
         String password = request.getPassword();
         String role = request.getRole().trim();
-        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
-
-        if (username.isEmpty() || password.isEmpty() || role.isEmpty() || email.isEmpty()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Username, password, role and email are required")
-                    .asRuntimeException());
-            return;
+          return;
         }
 
         Optional<UserAccountEntity> existing = userRepository.findByUsername(username);
@@ -55,39 +47,10 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
             return;
         }
 
-        Optional<UserAccountEntity> emailMatch = userRepository.findByEmail(email);
-        if (emailMatch.isPresent()) {
-            responseObserver.onError(Status.ALREADY_EXISTS
-                    .withDescription("Email already registered")
-                    .asRuntimeException());
-            return;
-        }
-
-        String userId = UUID.randomUUID().toString();
-        String hashedPassword = passwordEncoder.encode(password);
-        UserAccountEntity entity = new UserAccountEntity(userId, username, email, hashedPassword, role);
-        userRepository.save(entity);
-        log.info("Registered new user: username={}, email={}, role={}", username, email, role);
-
         responseObserver.onNext(toResponse(entity));
         responseObserver.onCompleted();
     }
 
-    @Override
-    public void loginUser(LoginRequest request, StreamObserver<UserResponse> responseObserver) {
-        String identifier = request.getUsername().trim();
-        String password = request.getPassword();
-
-        if (identifier.isEmpty() || password.isEmpty()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Username/email and password are required")
-                    .asRuntimeException());
-            return;
-        }
-
-        Optional<UserAccountEntity> existing = identifier.contains("@")
-                ? userRepository.findByEmail(identifier)
-                : userRepository.findByUsername(identifier);
         if (existing.isEmpty() || !passwordEncoder.matches(password, existing.get().getPasswordHash())) {
             responseObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Invalid username or password")
@@ -104,11 +67,6 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
         String refreshToken = UUID.randomUUID().toString();
         return UserResponse.newBuilder()
                 .setUserId(entity.getUserId())
-                .setUsername(entity.getUsername() != null ? entity.getUsername() : "")
-                .setRole(entity.getRole() != null ? entity.getRole() : "")
-                .setAccessToken(accessToken)
-                .setRefreshToken(refreshToken)
-                .setEmail(entity.getEmail() != null ? entity.getEmail() : "")
                 .build();
     }
 }
