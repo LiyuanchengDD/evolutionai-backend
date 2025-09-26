@@ -6,6 +6,8 @@ import com.example.grpcdemo.controller.dto.AuthResponseDto;
 import com.example.grpcdemo.controller.dto.LoginRequest;
 import com.example.grpcdemo.controller.dto.RegisterRequest;
 import com.example.grpcdemo.controller.dto.SendCodeRequest;
+import com.example.grpcdemo.controller.dto.ResetPasswordRequest;
+import com.example.grpcdemo.controller.dto.SuccessResponse;
 import com.example.grpcdemo.controller.dto.VerificationCodeResponseDto;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,10 +27,18 @@ public class AuthController {
     }
 
     @PostMapping("/{segment}/auth/send-code")
-    public VerificationCodeResponseDto sendCode(@PathVariable("segment") String segment,
-                                                @Valid @RequestBody SendCodeRequest request) {
+    public VerificationCodeResponseDto sendRegistrationCode(@PathVariable("segment") String segment,
+                                                            @Valid @RequestBody SendCodeRequest request) {
         AuthRole role = resolveRole(segment);
-        AuthManager.VerificationResult result = authManager.requestVerificationCode(request.getEmail(), role);
+        AuthManager.VerificationResult result = authManager.requestRegistrationCode(request.getEmail(), role);
+        return new VerificationCodeResponseDto(result.requestId(), result.expiresInSeconds());
+    }
+
+    @PostMapping("/{segment}/auth/password/reset/send-code")
+    public VerificationCodeResponseDto sendResetCode(@PathVariable("segment") String segment,
+                                                     @Valid @RequestBody SendCodeRequest request) {
+        AuthRole role = resolveRole(segment);
+        AuthManager.VerificationResult result = authManager.requestPasswordResetCode(request.getEmail(), role);
         return new VerificationCodeResponseDto(result.requestId(), result.expiresInSeconds());
     }
 
@@ -46,6 +56,14 @@ public class AuthController {
         AuthRole role = resolveRole(segment);
         AuthManager.AuthSession session = authManager.login(request.getEmail(), request.getPassword(), role);
         return toDto(session);
+    }
+
+    @PostMapping("/{segment}/auth/password/reset")
+    public SuccessResponse resetPassword(@PathVariable("segment") String segment,
+                                         @Valid @RequestBody ResetPasswordRequest request) {
+        AuthRole role = resolveRole(segment);
+        authManager.resetPassword(request.getEmail(), request.getVerificationCode(), request.getNewPassword(), role);
+        return new SuccessResponse("密码重置成功");
     }
 
     private AuthRole resolveRole(String segment) {

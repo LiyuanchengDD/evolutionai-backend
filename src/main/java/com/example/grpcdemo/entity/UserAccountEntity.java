@@ -4,18 +4,19 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 /**
  * JPA entity representing a registered user account.
  */
 @Entity
-@Table(name = "user_accounts")
+@Table(name = "user_accounts", uniqueConstraints = @UniqueConstraint(columnNames = {"username", "role"}))
 public class UserAccountEntity {
 
     @Id
     private String userId;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String username;
 
     @Column(nullable = false)
