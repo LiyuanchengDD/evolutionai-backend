@@ -28,7 +28,7 @@ public class AuthController {
     public VerificationCodeResponseDto sendCode(@PathVariable("segment") String segment,
                                                 @Valid @RequestBody SendCodeRequest request) {
         AuthRole role = resolveRole(segment);
-        AuthManager.VerificationResult result = authManager.requestVerificationCode(request.getEmail(), role);
+        AuthManager.VerificationResult result = authManager.requestVerificationCode(request.getEmail(), role, request.getPurpose());
         return new VerificationCodeResponseDto(result.requestId(), result.expiresInSeconds());
     }
 
