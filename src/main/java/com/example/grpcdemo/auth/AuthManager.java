@@ -44,11 +44,20 @@ public class AuthManager {
     }
 
     public VerificationResult requestRegistrationCode(String email, AuthRole role) {
-        return requestVerificationCodeInternal(email, role, VerificationPurpose.REGISTRATION, false);
+        return requestVerificationCode(email, role, VerificationPurpose.REGISTER);
     }
 
     public VerificationResult requestPasswordResetCode(String email, AuthRole role) {
-        return requestVerificationCodeInternal(email, role, VerificationPurpose.PASSWORD_RESET, true);
+        return requestVerificationCode(email, role, VerificationPurpose.RESET_PASSWORD);
+    }
+
+    public VerificationResult requestVerificationCode(String email,
+                                                      AuthRole role,
+                                                      VerificationPurpose purpose) {
+        return switch (purpose) {
+            case REGISTER -> requestVerificationCodeInternal(email, role, VerificationPurpose.REGISTER, false);
+            case RESET_PASSWORD -> requestVerificationCodeInternal(email, role, VerificationPurpose.RESET_PASSWORD, true);
+        };
     }
 
     public void resetPassword(String email, String verificationCode, String newPassword, AuthRole role) {
@@ -56,7 +65,7 @@ public class AuthManager {
         validateEmail(normalizedEmail);
         validatePassword(newPassword);
 
-        String codeKey = codeKey(normalizedEmail, role, VerificationPurpose.PASSWORD_RESET);
+        String codeKey = codeKey(normalizedEmail, role, VerificationPurpose.RESET_PASSWORD);
         VerificationCodeRecord record = codeStore.get(codeKey);
         if (record == null || record.consumed()) {
             throw new AuthException(AuthErrorCode.CODE_NOT_FOUND);
@@ -85,7 +94,7 @@ public class AuthManager {
         validateEmail(normalizedEmail);
         validatePassword(password);
 
-        String codeKey = codeKey(normalizedEmail, role, VerificationPurpose.REGISTRATION);
+        String codeKey = codeKey(normalizedEmail, role, VerificationPurpose.REGISTER);
         VerificationCodeRecord record = codeStore.get(codeKey);
         if (record == null || record.consumed()) {
             throw new AuthException(AuthErrorCode.CODE_NOT_FOUND);
@@ -134,6 +143,9 @@ public class AuthManager {
         validateEmail(normalizedEmail);
         if (requireExistingUser) {
             requireExistingUser(normalizedEmail, role);
+        } else if (purpose == VerificationPurpose.REGISTER
+                && userRepository.findByUsernameAndRole(normalizedEmail, role.alias()).isPresent()) {
+            throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS);
         }
 
         Instant now = clock.instant();
@@ -201,10 +213,6 @@ public class AuthManager {
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND, "该邮箱尚未注册"));
     }
 
-    private boolean userExists(String email, AuthRole role) {
-        return userStore.containsKey(userKey(email, role));
-    }
-
     public record VerificationResult(String requestId, int expiresInSeconds) {}
 
     public record AuthSession(String userId, String email, AuthRole role, String accessToken, String refreshToken) {}
@@ -214,10 +222,5 @@ public class AuthManager {
         VerificationCodeRecord markConsumed() {
             return new VerificationCodeRecord(code, expireAt, lastSentAt, true, requestId);
         }
-    }
-
-    private enum VerificationPurpose {
-        REGISTRATION,
-        PASSWORD_RESET
     }
 }
