@@ -141,6 +141,16 @@
         <protocArtifact>
           com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
         </protocArtifact>
+        <!--
+          Disable scanning of regular Maven dependencies for *.proto definitions.
+          The project only uses the protobuf files that live under src/main/proto and
+          macOS users reported that the plugin was trying to treat unpacked dependency
+          jars inside target/protoc-dependencies as include directories, causing
+          "Proto path element is not a directory" failures during the second
+          invocation of the compile goal (e.g. when both generate-sources and
+          compile phases are executed in one Maven call).
+        -->
+        <includeDependencies>false</includeDependencies>
         <pluginId>grpc-java</pluginId>
         <pluginArtifact>
           io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
