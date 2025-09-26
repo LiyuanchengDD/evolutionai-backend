@@ -6,54 +6,35 @@ option java_outer_classname = "AuthProto";
 
 package auth;
 
-// --- 统一的用户类型（企业/工程师） ---
-enum UserType {
-  USER_TYPE_UNSPECIFIED = 0;
-  ENTERPRISE = 1; // 企业端(B端)
-  ENGINEER   = 2; // 工程师端(C端)
-}
-
-// --- 认证服务 ---
+// Authentication service providing registration and login flows.
 service AuthService {
-  // 注册（邮箱 + 验证码）
-  rpc RegisterUser (RegisterUserRequest) returns (AuthResponse);
+  // Register a new user account.
+  rpc RegisterUser (RegisterUserRequest) returns (UserResponse);
 
-  // 登录（邮箱 + 验证码）
-  rpc Login (LoginRequest) returns (AuthResponse);
-
-  // 发送验证码（可选）
-  rpc SendVerificationCode (SendCodeRequest) returns (SendCodeResponse);
+  // Login using username and password credentials.
+  rpc LoginUser (LoginRequest) returns (UserResponse);
 }
 
-// --- 请求/响应消息 ---
+// Request payload used to register a new user.
 message RegisterUserRequest {
-  string  email              = 1;
-  string  verification_code  = 2;
-  UserType user_type         = 3; // ENTERPRISE/ENGINEER
-  string  password           = 4; // 如无需密码，可忽略
+  string username = 1;
+  string password = 2;
+  string role = 3;
+  string email = 4;
 }
 
+// Request payload used to login an existing user.
 message LoginRequest {
-  string  email              = 1;
-  string  verification_code  = 2;
-  UserType user_type         = 3;
+  string username = 1;
+  string password = 2;
 }
 
-message SendCodeRequest {
-  string  email              = 1;
-  UserType user_type         = 2;
-}
-
-message SendCodeResponse {
-  bool   success   = 1;
-  string error     = 2; // 失败原因(可选)
-}
-
-message AuthResponse {
-  bool   success       = 1;
-  string user_id       = 2;
-  string access_token  = 3;
-  int64  expires_at    = 4; // epoch millis
-  string refresh_token = 5; // 可选
-  string error         = 6; // 失败原因(可选)
+// Response returned after successful authentication.
+message UserResponse {
+  string user_id = 1;
+  string username = 2;
+  string role = 3;
+  string access_token = 4;
+  string refresh_token = 5;
+  string email = 6;
 }

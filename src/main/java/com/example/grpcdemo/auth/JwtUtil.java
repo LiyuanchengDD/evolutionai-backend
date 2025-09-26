@@ -1,4 +1,4 @@
-package com.example.grpcdemo.service;
+package com.example.grpcdemo.auth;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;

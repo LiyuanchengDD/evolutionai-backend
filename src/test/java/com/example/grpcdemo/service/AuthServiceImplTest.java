@@ -40,7 +40,8 @@ class AuthServiceImplTest {
         RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
                 .setUsername("valid-user")
                 .setPassword("strong-password")
-                .setRole("ADMIN")
+                .setRole("ENGINEER")
+                .setEmail("valid-user@example.com")
                 .build();
 
         TestStreamObserver<UserResponse> registerObserver = new TestStreamObserver<>();
@@ -53,7 +54,8 @@ class AuthServiceImplTest {
         UserResponse registered = registerObserver.getValues().get(0);
         assertThat(registered.getUserId()).isNotBlank();
         assertThat(registered.getUsername()).isEqualTo("valid-user");
-        assertThat(registered.getRole()).isEqualTo("ADMIN");
+        assertThat(registered.getRole()).isEqualTo("ENGINEER");
+        assertThat(registered.getEmail()).isEqualTo("valid-user@example.com");
 
         userRepository.flush();
         UserAccountEntity persisted = userRepository.findByUsername("valid-user").orElseThrow();
@@ -75,7 +77,7 @@ class AuthServiceImplTest {
         UserResponse loginResponse = loginObserver.getValues().get(0);
         assertThat(loginResponse.getUserId()).isEqualTo(registered.getUserId());
         assertThat(loginResponse.getUsername()).isEqualTo("valid-user");
-        assertThat(loginResponse.getRole()).isEqualTo("ADMIN");
+        assertThat(loginResponse.getRole()).isEqualTo("ENGINEER");
         assertThat(loginResponse.getAccessToken()).isNotBlank();
     }
 
@@ -84,7 +86,8 @@ class AuthServiceImplTest {
         RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
                 .setUsername("invalid-user")
                 .setPassword("correct-password")
-                .setRole("USER")
+                .setRole("ENGINEER")
+                .setEmail("invalid-user@example.com")
                 .build();
 
         TestStreamObserver<UserResponse> registerObserver = new TestStreamObserver<>();
@@ -111,7 +114,8 @@ class AuthServiceImplTest {
         RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
                 .setUsername("duplicate-user")
                 .setPassword("password")
-                .setRole("USER")
+                .setRole("ENGINEER")
+                .setEmail("duplicate-user@example.com")
                 .build();
 
         TestStreamObserver<UserResponse> firstObserver = new TestStreamObserver<>();
@@ -128,6 +132,25 @@ class AuthServiceImplTest {
         assertThat(duplicateObserver.getError()).isInstanceOf(StatusRuntimeException.class);
         StatusRuntimeException exception = (StatusRuntimeException) duplicateObserver.getError();
         assertThat(Status.fromThrowable(exception).getCode()).isEqualTo(Status.ALREADY_EXISTS.getCode());
+    }
+
+    @Test
+    void registerUserWithUnknownRoleReturnsInvalidArgument() {
+        RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
+                .setUsername("new-user")
+                .setPassword("password")
+                .setRole("unknown-role")
+                .setEmail("new-user@example.com")
+                .build();
+
+        TestStreamObserver<UserResponse> observer = new TestStreamObserver<>();
+        authService.registerUser(registerRequest, observer);
+
+        assertThat(observer.getValues()).isEmpty();
+        assertThat(observer.isCompleted()).isFalse();
+        assertThat(observer.getError()).isInstanceOf(StatusRuntimeException.class);
+        StatusRuntimeException exception = (StatusRuntimeException) observer.getError();
+        assertThat(Status.fromThrowable(exception).getCode()).isEqualTo(Status.INVALID_ARGUMENT.getCode());
     }
 
     private static final class TestStreamObserver<T> implements StreamObserver<T> {
