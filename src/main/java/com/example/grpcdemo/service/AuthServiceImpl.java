@@ -36,7 +36,6 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
         String username = request.getUsername().trim();
         String password = request.getPassword();
         String role = request.getRole().trim();
-          return;
         }
 
         Optional<UserAccountEntity> existing = userRepository.findByUsername(username);
@@ -48,17 +47,6 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
         }
 
         responseObserver.onNext(toResponse(entity));
-        responseObserver.onCompleted();
-    }
-
-        if (existing.isEmpty() || !passwordEncoder.matches(password, existing.get().getPasswordHash())) {
-            responseObserver.onError(Status.UNAUTHENTICATED
-                    .withDescription("Invalid username or password")
-                    .asRuntimeException());
-            return;
-        }
-
-        responseObserver.onNext(toResponse(existing.get()));
         responseObserver.onCompleted();
     }
 
