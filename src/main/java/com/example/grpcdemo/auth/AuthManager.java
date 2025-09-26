@@ -201,6 +201,10 @@ public class AuthManager {
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND, "该邮箱尚未注册"));
     }
 
+    private boolean userExists(String email, AuthRole role) {
+        return userStore.containsKey(userKey(email, role));
+    }
+
     public record VerificationResult(String requestId, int expiresInSeconds) {}
 
     public record AuthSession(String userId, String email, AuthRole role, String accessToken, String refreshToken) {}
