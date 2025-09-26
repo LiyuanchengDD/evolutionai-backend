@@ -41,6 +41,7 @@ class AuthServiceImplTest {
                 .setUsername("valid-user")
                 .setPassword("strong-password")
                 .setRole("ADMIN")
+                .setEmail("valid-user@example.com")
                 .build();
 
         TestStreamObserver<UserResponse> registerObserver = new TestStreamObserver<>();
@@ -54,6 +55,7 @@ class AuthServiceImplTest {
         assertThat(registered.getUserId()).isNotBlank();
         assertThat(registered.getUsername()).isEqualTo("valid-user");
         assertThat(registered.getRole()).isEqualTo("ADMIN");
+        assertThat(registered.getEmail()).isEqualTo("valid-user@example.com");
 
         userRepository.flush();
         UserAccountEntity persisted = userRepository.findByUsername("valid-user").orElseThrow();
@@ -85,6 +87,7 @@ class AuthServiceImplTest {
                 .setUsername("invalid-user")
                 .setPassword("correct-password")
                 .setRole("USER")
+                .setEmail("invalid-user@example.com")
                 .build();
 
         TestStreamObserver<UserResponse> registerObserver = new TestStreamObserver<>();
@@ -112,6 +115,7 @@ class AuthServiceImplTest {
                 .setUsername("duplicate-user")
                 .setPassword("password")
                 .setRole("USER")
+                .setEmail("duplicate-user@example.com")
                 .build();
 
         TestStreamObserver<UserResponse> firstObserver = new TestStreamObserver<>();
