@@ -12,7 +12,6 @@ import net.devh.boot.grpc.server.service.GrpcService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,12 +36,7 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
         String username = request.getUsername().trim();
         String password = request.getPassword();
         String role = request.getRole().trim();
-
-        if (username.isEmpty() || password.isEmpty() || role.isEmpty()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Username, password and role are required")
-                    .asRuntimeException());
-            return;
+          return;
         }
 
         Optional<UserAccountEntity> existing = userRepository.findByUsername(username);
@@ -53,29 +47,10 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
             return;
         }
 
-        String userId = UUID.randomUUID().toString();
-        String hashedPassword = passwordEncoder.encode(password);
-        UserAccountEntity entity = new UserAccountEntity(userId, username, hashedPassword, role);
-        userRepository.save(entity);
-        log.info("Registered new user: username={}, role={}", username, role);
-
         responseObserver.onNext(toResponse(entity));
         responseObserver.onCompleted();
     }
 
-    @Override
-    public void loginUser(LoginRequest request, StreamObserver<UserResponse> responseObserver) {
-        String username = request.getUsername().trim();
-        String password = request.getPassword();
-
-        if (username.isEmpty() || password.isEmpty()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Username and password are required")
-                    .asRuntimeException());
-            return;
-        }
-
-        Optional<UserAccountEntity> existing = userRepository.findByUsername(username);
         if (existing.isEmpty() || !passwordEncoder.matches(password, existing.get().getPasswordHash())) {
             responseObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Invalid username or password")
@@ -92,10 +67,6 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
         String refreshToken = UUID.randomUUID().toString();
         return UserResponse.newBuilder()
                 .setUserId(entity.getUserId())
-                .setUsername(entity.getUsername())
-                .setRole(entity.getRole())
-                .setAccessToken(accessToken)
-                .setRefreshToken(refreshToken)
                 .build();
     }
 }

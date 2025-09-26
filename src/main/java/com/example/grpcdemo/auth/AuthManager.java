@@ -1,8 +1,9 @@
 package com.example.grpcdemo.auth;
 
+import com.example.grpcdemo.entity.UserAccountEntity;
+import com.example.grpcdemo.repository.UserAccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -25,20 +26,21 @@ public class AuthManager {
     private static final Duration RESEND_INTERVAL = Duration.ofMinutes(1);
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
-    private final Map<String, UserAccount> userStore = new ConcurrentHashMap<>();
+    private final UserAccountRepository userRepository;
     private final Map<String, VerificationCodeRecord> codeStore = new ConcurrentHashMap<>();
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom random;
     private final Clock clock;
 
-    public AuthManager() {
-        this(new BCryptPasswordEncoder(), new SecureRandom(), Clock.systemUTC());
+    public AuthManager(UserAccountRepository userRepository, PasswordEncoder passwordEncoder) {
+        this(userRepository, passwordEncoder, Clock.systemUTC(), new SecureRandom());
     }
 
-    public AuthManager(PasswordEncoder passwordEncoder, SecureRandom random, Clock clock) {
+    AuthManager(UserAccountRepository userRepository, PasswordEncoder passwordEncoder, Clock clock, SecureRandom random) {
+        this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.random = random;
         this.clock = clock;
+        this.random = random;
     }
 
     public VerificationResult requestVerificationCode(String email, AuthRole role) {
@@ -85,34 +87,38 @@ public class AuthManager {
 
         codeStore.put(codeKey, record.markConsumed());
 
-        String userKey = userKey(normalizedEmail, role);
-        UserAccount user = userStore.compute(userKey, (key, existing) -> {
-            if (existing != null) {
-                throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS);
-            }
-            String userId = UUID.randomUUID().toString();
-            String hashed = passwordEncoder.encode(password);
-            return new UserAccount(userId, normalizedEmail, role, hashed, now);
-        });
+        if (userRepository.findByEmail(normalizedEmail).isPresent()) {
+            throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS);
+        }
 
-        return createSession(user);
+        String userId = UUID.randomUUID().toString();
+        String hashed = passwordEncoder.encode(password);
+        UserAccountEntity entity = new UserAccountEntity(userId, normalizedEmail, normalizedEmail, hashed, role.name());
+        userRepository.save(entity);
+        log.info("Registered new user: email={}, role={}", normalizedEmail, role);
+        return createSession(entity);
     }
 
     public AuthSession login(String email, String password, AuthRole role) {
         String normalizedEmail = normalizeEmail(email);
         validateEmail(normalizedEmail);
-        String userKey = userKey(normalizedEmail, role);
-        UserAccount user = userStore.get(userKey);
-        if (user == null || !passwordEncoder.matches(password, user.passwordHash())) {
+        UserAccountEntity entity = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_CREDENTIALS));
+        AuthRole storedRole = resolveRole(entity.getRole());
+        if (storedRole != role) {
             throw new AuthException(AuthErrorCode.INVALID_CREDENTIALS);
         }
-        return createSession(user);
+        if (!passwordEncoder.matches(password, entity.getPasswordHash())) {
+            throw new AuthException(AuthErrorCode.INVALID_CREDENTIALS);
+        }
+        return createSession(entity);
     }
 
-    private AuthSession createSession(UserAccount user) {
+    private AuthSession createSession(UserAccountEntity user) {
+        AuthRole role = resolveRole(user.getRole());
         String accessToken = UUID.randomUUID().toString();
         String refreshToken = UUID.randomUUID().toString();
-        return new AuthSession(user.userId(), user.email(), user.role(), accessToken, refreshToken);
+        return new AuthSession(user.getUserId(), user.getEmail(), role, accessToken, refreshToken);
     }
 
     private long remainingSeconds(VerificationCodeRecord record, Instant now) {
@@ -145,11 +151,18 @@ public class AuthManager {
         return Integer.toString(code);
     }
 
-    private String codeKey(String email, AuthRole role) {
-        return email + "|" + role.name();
+    private AuthRole resolveRole(String value) {
+        if (value == null || value.isBlank()) {
+            throw new AuthException(AuthErrorCode.INVALID_ROLE, "角色信息缺失");
+        }
+        try {
+            return AuthRole.valueOf(value);
+        } catch (IllegalArgumentException ex) {
+            throw new AuthException(AuthErrorCode.INVALID_ROLE, "不支持的角色: " + value);
+        }
     }
 
-    private String userKey(String email, AuthRole role) {
+    private String codeKey(String email, AuthRole role) {
         return email + "|" + role.name();
     }
 
@@ -163,5 +176,4 @@ public class AuthManager {
         }
     }
 
-    private record UserAccount(String userId, String email, AuthRole role, String passwordHash, Instant createdAt) {}
 }
