@@ -67,15 +67,16 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
     public void loginUser(LoginRequest request, StreamObserver<UserResponse> responseObserver) {
         String username = request.getUsername().trim();
         String password = request.getPassword();
+        String role = request.getRole().trim();
 
-        if (username.isEmpty() || password.isEmpty()) {
+        if (username.isEmpty() || password.isEmpty() || role.isEmpty()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Username and password are required")
+                    .withDescription("Username, password and role are required")
                     .asRuntimeException());
             return;
         }
 
-        Optional<UserAccountEntity> existing = userRepository.findByUsernameAndRole(username, request.getRole().trim());
+        Optional<UserAccountEntity> existing = userRepository.findByUsernameAndRole(username, role);
         if (existing.isEmpty() || !passwordEncoder.matches(password, existing.get().getPasswordHash())) {
             responseObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Invalid username or password")
@@ -94,6 +95,7 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
                 .setUserId(entity.getUserId())
                 .setUsername(entity.getUsername())
                 .setRole(entity.getRole())
+                .setEmail(entity.getUsername())
                 .setAccessToken(accessToken)
                 .setRefreshToken(refreshToken)
                 .build();
