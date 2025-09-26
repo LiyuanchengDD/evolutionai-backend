@@ -45,7 +45,7 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
             return;
         }
 
-        Optional<UserAccountEntity> existing = userRepository.findByUsername(username);
+        Optional<UserAccountEntity> existing = userRepository.findByUsernameAndRole(username, role);
         if (existing.isPresent()) {
             responseObserver.onError(Status.ALREADY_EXISTS
                     .withDescription("User already exists")
@@ -75,7 +75,7 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
             return;
         }
 
-        Optional<UserAccountEntity> existing = userRepository.findByUsername(username);
+        Optional<UserAccountEntity> existing = userRepository.findByUsernameAndRole(username, request.getRole().trim());
         if (existing.isEmpty() || !passwordEncoder.matches(password, existing.get().getPasswordHash())) {
             responseObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Invalid username or password")

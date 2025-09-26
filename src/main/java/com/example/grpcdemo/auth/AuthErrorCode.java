@@ -11,7 +11,7 @@ public enum AuthErrorCode {
     CODE_EXPIRED(Status.DEADLINE_EXCEEDED, HttpStatus.BAD_REQUEST, "验证码已过期"),
     CODE_MISMATCH(Status.PERMISSION_DENIED, HttpStatus.BAD_REQUEST, "验证码不匹配"),
     USER_ALREADY_EXISTS(Status.ALREADY_EXISTS, HttpStatus.CONFLICT, "用户已存在"),
-    USER_NOT_FOUND(Status.NOT_FOUND, HttpStatus.NOT_FOUND, "用户不存在"),
+    USER_NOT_FOUND(Status.NOT_FOUND, HttpStatus.BAD_REQUEST, "用户不存在"),
     PASSWORD_TOO_WEAK(Status.INVALID_ARGUMENT, HttpStatus.BAD_REQUEST, "密码强度不足"),
     INVALID_CREDENTIALS(Status.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED, "邮箱或密码错误"),
     INTERNAL_ERROR(Status.INTERNAL, HttpStatus.INTERNAL_SERVER_ERROR, "系统内部错误");
