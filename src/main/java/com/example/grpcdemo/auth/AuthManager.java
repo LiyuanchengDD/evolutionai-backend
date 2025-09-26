@@ -41,9 +41,17 @@ public class AuthManager {
         this.clock = clock;
     }
 
-    public VerificationResult requestVerificationCode(String email, AuthRole role) {
+    public VerificationResult requestVerificationCode(String email, AuthRole role, VerificationPurpose purpose) {
         String normalizedEmail = normalizeEmail(email);
         validateEmail(normalizedEmail);
+        boolean userExists = userExists(normalizedEmail, role);
+
+        if (purpose == VerificationPurpose.REGISTER && userExists) {
+            throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS);
+        }
+        if (purpose == VerificationPurpose.RESET_PASSWORD && !userExists) {
+            throw new AuthException(AuthErrorCode.USER_NOT_FOUND, "该邮箱尚未注册");
+        }
         Instant now = clock.instant();
         String key = codeKey(normalizedEmail, role);
 
@@ -151,6 +159,10 @@ public class AuthManager {
 
     private String userKey(String email, AuthRole role) {
         return email + "|" + role.name();
+    }
+
+    private boolean userExists(String email, AuthRole role) {
+        return userStore.containsKey(userKey(email, role));
     }
 
     public record VerificationResult(String requestId, int expiresInSeconds) {}
