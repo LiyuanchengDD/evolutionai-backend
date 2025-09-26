@@ -116,7 +116,6 @@ public class AuthManager {
 
     private AuthSession createSession(UserAccountEntity user) {
         AuthRole role = resolveRole(user.getRole());
-        String accessToken = JwtUtil.generateToken(user.getUserId(), user.getEmail(), role.name());
         String refreshToken = UUID.randomUUID().toString();
         return new AuthSession(user.getUserId(), user.getEmail(), role, accessToken, refreshToken);
     }
