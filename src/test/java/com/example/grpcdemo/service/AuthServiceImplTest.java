@@ -64,6 +64,7 @@ class AuthServiceImplTest {
         LoginRequest loginRequest = LoginRequest.newBuilder()
                 .setUsername("valid-user")
                 .setPassword("strong-password")
+                .setRole("ADMIN")
                 .build();
 
         authService.loginUser(loginRequest, loginObserver);
@@ -95,6 +96,7 @@ class AuthServiceImplTest {
         LoginRequest loginRequest = LoginRequest.newBuilder()
                 .setUsername("invalid-user")
                 .setPassword("wrong-password")
+                .setRole("USER")
                 .build();
 
         authService.loginUser(loginRequest, loginObserver);
