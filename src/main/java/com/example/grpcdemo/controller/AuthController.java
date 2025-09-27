@@ -5,7 +5,7 @@ import com.example.grpcdemo.auth.AuthRole;
 import com.example.grpcdemo.controller.dto.AuthResponseDto;
 import com.example.grpcdemo.controller.dto.LoginRequest;
 import com.example.grpcdemo.controller.dto.RegisterRequest;
-import com.example.grpcdemo.controller.dto.SendCodeRequest;
+import com.example.grpcdemo.controller.dto.SendVerificationCodeRequest;
 import com.example.grpcdemo.controller.dto.ResetPasswordRequest;
 import com.example.grpcdemo.controller.dto.SuccessResponse;
 import com.example.grpcdemo.controller.dto.VerificationCodeResponseDto;
@@ -26,14 +26,24 @@ public class AuthController {
         this.authManager = authManager;
     }
 
+    @PostMapping("/{segment}/auth/register/send-code")
+    public VerificationCodeResponseDto sendRegisterCode(@PathVariable("segment") String segment,
+                                                        @Valid @RequestBody SendVerificationCodeRequest request) {
+        AuthRole role = resolveRole(segment);
+        AuthManager.VerificationResult result = authManager.requestRegistrationCode(
+                request.getEmail(),
+                role
+        );
+        return new VerificationCodeResponseDto(result.requestId(), result.expiresInSeconds());
+    }
+
     @PostMapping("/{segment}/auth/password/reset/send-code")
     public VerificationCodeResponseDto sendResetCode(@PathVariable("segment") String segment,
-                                                     @Valid @RequestBody SendCodeRequest request) {
+                                                     @Valid @RequestBody SendVerificationCodeRequest request) {
         AuthRole role = resolveRole(segment);
-        AuthManager.VerificationResult result = authManager.requestVerificationCode(
+        AuthManager.VerificationResult result = authManager.requestPasswordResetCode(
                 request.getEmail(),
-                role,
-                request.getPurpose()
+                role
         );
         return new VerificationCodeResponseDto(result.requestId(), result.expiresInSeconds());
     }

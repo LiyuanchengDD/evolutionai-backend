@@ -29,16 +29,24 @@ public class AuthManager {
     private final Map<String, VerificationCodeRecord> codeStore = new ConcurrentHashMap<>();
     private final UserAccountRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final VerificationCodeSender verificationCodeSender;
     private final SecureRandom random;
     private final Clock clock;
 
-    public AuthManager(UserAccountRepository userRepository, PasswordEncoder passwordEncoder) {
-        this(userRepository, passwordEncoder, new SecureRandom(), Clock.systemUTC());
+    public AuthManager(UserAccountRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       VerificationCodeSender verificationCodeSender) {
+        this(userRepository, passwordEncoder, verificationCodeSender, new SecureRandom(), Clock.systemUTC());
     }
 
-    AuthManager(UserAccountRepository userRepository, PasswordEncoder passwordEncoder, SecureRandom random, Clock clock) {
+    AuthManager(UserAccountRepository userRepository,
+                PasswordEncoder passwordEncoder,
+                VerificationCodeSender verificationCodeSender,
+                SecureRandom random,
+                Clock clock) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.verificationCodeSender = verificationCodeSender;
         this.random = random;
         this.clock = clock;
     }
@@ -164,6 +172,13 @@ public class AuthManager {
 
         log.info("Generated verification code for email={}, role={}, purpose={}, code={}",
                 normalizedEmail, role, purpose, code);
+
+        try {
+            verificationCodeSender.sendVerificationCode(normalizedEmail, code, role, purpose, CODE_TTL);
+        } catch (RuntimeException ex) {
+            codeStore.remove(key);
+            throw ex;
+        }
         return new VerificationResult(record.requestId(), (int) CODE_TTL.getSeconds());
     }
 
