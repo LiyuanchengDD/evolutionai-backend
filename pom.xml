@@ -150,34 +150,25 @@
     <plugin>
       <groupId>org.xolstice.maven.plugins</groupId>
       <artifactId>protobuf-maven-plugin</artifactId>
-      <version>0.6.1</version>
+      <version>0.6.3</version>
       <configuration>
         <protocArtifact>
           com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
         </protocArtifact>
-        <!--
-            Use the classic protoc plugin wiring so the 0.6.1 release available on Maven
-            Central can still generate both the Java classes and gRPC stubs in a single
-            invocation.  Binding only the compile goal prevents the duplicate execution
-            that previously corrupted files on macOS.
-        -->
-        <protocPlugins>
-          <protocPlugin>
-            <id>grpc-java</id>
-            <groupId>io.grpc</groupId>
-            <artifactId>protoc-gen-grpc-java</artifactId>
-            <version>${grpc.version}</version>
-            <classifier>${os.detected.classifier}</classifier>
-          </protocPlugin>
-        </protocPlugins>
       </configuration>
       <executions>
         <execution>
           <id>generate-protobuf-sources</id>
           <phase>generate-sources</phase>
           <goals>
-            <goal>compile</goal>
+            <goal>add-source</goal>
           </goals>
+          <configuration>
+            <sources>
+              <source>${project.build.directory}/generated-sources/protobuf/java</source>
+              <source>${project.build.directory}/generated-sources/protobuf/grpc-java</source>
+            </sources>
+          </configuration>
         </execution>
       </executions>
     </plugin>
