@@ -56,7 +56,9 @@ class AuthServiceImplTest {
         assertThat(registered.getRole()).isEqualTo("ADMIN");
 
         userRepository.flush();
-        UserAccountEntity persisted = userRepository.findByUsername("valid-user").orElseThrow();
+        UserAccountEntity persisted = userRepository
+                .findByUsernameAndRole("valid-user", "ADMIN")
+                .orElseThrow();
         assertThat(persisted.getPasswordHash()).isNotEqualTo("strong-password");
         assertThat(passwordEncoder.matches("strong-password", persisted.getPasswordHash())).isTrue();
 
