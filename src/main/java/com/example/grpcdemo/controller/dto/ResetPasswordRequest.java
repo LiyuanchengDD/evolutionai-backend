@@ -1,5 +1,7 @@
 package com.example.grpcdemo.controller.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -17,6 +19,9 @@ public class ResetPasswordRequest {
     @NotBlank(message = "新密码不能为空")
     @Size(min = 6, message = "密码至少需要6位")
     private String newPassword;
+
+    @NotBlank(message = "确认密码不能为空")
+    private String confirmPassword;
 
     public String getEmail() {
         return email;
@@ -40,5 +45,22 @@ public class ResetPasswordRequest {
 
     public void setNewPassword(String newPassword) {
         this.newPassword = newPassword;
+    }
+
+    public String getConfirmPassword() {
+        return confirmPassword;
+    }
+
+    public void setConfirmPassword(String confirmPassword) {
+        this.confirmPassword = confirmPassword;
+    }
+
+    @JsonIgnore
+    @AssertTrue(message = "两次输入的密码不一致")
+    public boolean isPasswordConfirmed() {
+        if (newPassword == null || confirmPassword == null) {
+            return false;
+        }
+        return newPassword.equals(confirmPassword);
     }
 }
