@@ -156,26 +156,49 @@
           com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
         </protocArtifact>
         <!--
-          Disable scanning of regular Maven dependencies for *.proto definitions.
-          The project only uses the protobuf files that live under src/main/proto and
-          macOS users reported that the plugin was trying to treat unpacked dependency
-          jars inside target/protoc-dependencies as include directories, causing
-          "Proto path element is not a directory" failures during the second
-          invocation of the compile goal (e.g. when both generate-sources and
-          compile phases are executed in one Maven call).
+            Use the classic protoc plugin wiring so the 0.6.1 release available on Maven
+            Central can still generate both the Java classes and gRPC stubs in a single
+            invocation.  Binding only the compile goal prevents the duplicate execution
+            that previously corrupted files on macOS.
         -->
-        <includeDependencies>false</includeDependencies>
-        <pluginId>grpc-java</pluginId>
-        <pluginArtifact>
-          io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
-        </pluginArtifact>
+        <protocPlugins>
+          <protocPlugin>
+            <id>grpc-java</id>
+            <groupId>io.grpc</groupId>
+            <artifactId>protoc-gen-grpc-java</artifactId>
+            <version>${grpc.version}</version>
+            <classifier>${os.detected.classifier}</classifier>
+          </protocPlugin>
+        </protocPlugins>
       </configuration>
       <executions>
         <execution>
+          <id>generate-protobuf-sources</id>
+          <phase>generate-sources</phase>
           <goals>
-            <goal>compile</goal>         <!-- 生成 protobuf Java -->
-            <goal>compile-custom</goal>  <!-- 生成 gRPC stub -->
+            <goal>compile</goal>
           </goals>
+        </execution>
+      </executions>
+    </plugin>
+
+    <plugin>
+      <groupId>org.codehaus.mojo</groupId>
+      <artifactId>build-helper-maven-plugin</artifactId>
+      <version>3.5.0</version>
+      <executions>
+        <execution>
+          <id>add-protobuf-sources</id>
+          <phase>generate-sources</phase>
+          <goals>
+            <goal>add-source</goal>
+          </goals>
+          <configuration>
+            <sources>
+              <source>${project.build.directory}/generated-sources/protobuf/java</source>
+              <source>${project.build.directory}/generated-sources/protobuf/grpc-java</source>
+            </sources>
+          </configuration>
         </execution>
       </executions>
     </plugin>
