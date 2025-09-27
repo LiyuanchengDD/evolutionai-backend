@@ -56,7 +56,9 @@ class AuthServiceImplTest {
         assertThat(registered.getRole()).isEqualTo("ADMIN");
 
         userRepository.flush();
-        UserAccountEntity persisted = userRepository.findByUsername("valid-user").orElseThrow();
+        UserAccountEntity persisted = userRepository
+                .findByUsernameAndRole("valid-user", "ADMIN")
+                .orElseThrow();
         assertThat(persisted.getPasswordHash()).isNotEqualTo("strong-password");
         assertThat(passwordEncoder.matches("strong-password", persisted.getPasswordHash())).isTrue();
 
@@ -64,6 +66,7 @@ class AuthServiceImplTest {
         LoginRequest loginRequest = LoginRequest.newBuilder()
                 .setUsername("valid-user")
                 .setPassword("strong-password")
+                .setRole("ADMIN")
                 .build();
 
         authService.loginUser(loginRequest, loginObserver);
@@ -95,6 +98,7 @@ class AuthServiceImplTest {
         LoginRequest loginRequest = LoginRequest.newBuilder()
                 .setUsername("invalid-user")
                 .setPassword("wrong-password")
+                .setRole("USER")
                 .build();
 
         authService.loginUser(loginRequest, loginObserver);
