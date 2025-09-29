@@ -12,19 +12,24 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS citext;
 
 -- ============================================================================
+--  User accounts & authentication
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS public.user_accounts (
     user_id         uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username        citext      NOT NULL,
+    email           citext      NOT NULL,
     password_hash   text        NOT NULL,
     role            varchar(32) NOT NULL,
+    status          varchar(16) NOT NULL DEFAULT 'PENDING',
+    last_login_at   timestamptz,
     created_at      timestamptz NOT NULL DEFAULT now(),
     updated_at      timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT user_accounts_username_role_key UNIQUE (username, role),
-    CONSTRAINT user_accounts_role_check CHECK (role IN ('company', 'engineer'))
+    CONSTRAINT user_accounts_email_key UNIQUE (email),
+    CONSTRAINT user_accounts_role_check CHECK (role IN ('company', 'engineer', 'admin')),
+    CONSTRAINT user_accounts_status_check CHECK (status IN ('ACTIVE', 'PENDING', 'LOCKED'))
 );
 
-CREATE INDEX IF NOT EXISTS user_accounts_username_idx
-    ON public.user_accounts (username);
+CREATE INDEX IF NOT EXISTS user_accounts_email_idx
+    ON public.user_accounts (email);
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger AS $$
@@ -42,11 +47,109 @@ CREATE TRIGGER set_user_accounts_updated_at
     EXECUTE FUNCTION public.set_updated_at();
 
 -- ============================================================================
+--  Enterprise onboarding persistence
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.company_profiles (
+    company_id           uuid PRIMARY KEY,
+    owner_user_id        uuid        NOT NULL UNIQUE,
+    company_name         varchar(255) NOT NULL,
+    company_short_name   varchar(255),
+    social_credit_code   varchar(64),
+    employee_scale       varchar(64)  NOT NULL,
+    industry             varchar(255),
+    country              varchar(128) NOT NULL,
+    city                 varchar(128) NOT NULL,
+    website              varchar(255),
+    description          varchar(1000),
+    status               varchar(32)  NOT NULL,
+    created_at           timestamptz  NOT NULL DEFAULT now(),
+    updated_at           timestamptz  NOT NULL DEFAULT now()
+);
+
+DROP TRIGGER IF EXISTS set_company_profiles_updated_at
+    ON public.company_profiles;
+CREATE TRIGGER set_company_profiles_updated_at
+    BEFORE UPDATE ON public.company_profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TABLE IF NOT EXISTS public.company_contacts (
+    contact_id          uuid PRIMARY KEY,
+    company_id          uuid        NOT NULL REFERENCES public.company_profiles (company_id) ON DELETE CASCADE,
+    contact_name        varchar(128) NOT NULL,
+    contact_email       varchar(255) NOT NULL,
+    phone_country_code  varchar(8)   NOT NULL,
+    phone_number        varchar(32)  NOT NULL,
+    position            varchar(128),
+    department          varchar(128),
+    is_primary          boolean      NOT NULL DEFAULT false,
+    created_at          timestamptz  NOT NULL DEFAULT now(),
+    updated_at          timestamptz  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS company_contacts_company_id_idx
+    ON public.company_contacts (company_id);
+
+DROP TRIGGER IF EXISTS set_company_contacts_updated_at
+    ON public.company_contacts;
+CREATE TRIGGER set_company_contacts_updated_at
+    BEFORE UPDATE ON public.company_contacts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TABLE IF NOT EXISTS public.invitation_templates (
+    template_id     uuid PRIMARY KEY,
+    company_id      uuid        NOT NULL REFERENCES public.company_profiles (company_id) ON DELETE CASCADE,
+    template_name   varchar(255) NOT NULL,
+    subject         varchar(255) NOT NULL,
+    body            varchar(5000) NOT NULL,
+    language        varchar(32)  NOT NULL,
+    is_default      boolean      NOT NULL DEFAULT false,
+    created_at      timestamptz  NOT NULL DEFAULT now(),
+    updated_at      timestamptz  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS invitation_templates_company_id_idx
+    ON public.invitation_templates (company_id);
+
+DROP TRIGGER IF EXISTS set_invitation_templates_updated_at
+    ON public.invitation_templates;
+CREATE TRIGGER set_invitation_templates_updated_at
+    BEFORE UPDATE ON public.invitation_templates
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+CREATE UNIQUE INDEX IF NOT EXISTS invitation_templates_company_default_uidx
+    ON public.invitation_templates (company_id)
+    WHERE is_default;
+
+CREATE TABLE IF NOT EXISTS public.verification_tokens (
+    token_id        uuid PRIMARY KEY,
+    target_user_id  uuid        NOT NULL,
+    target_email    varchar(255) NOT NULL,
+    code            varchar(16)  NOT NULL,
+    channel         varchar(16)  NOT NULL,
+    purpose         varchar(64)  NOT NULL,
+    expires_at      timestamptz  NOT NULL,
+    consumed        boolean      NOT NULL DEFAULT false,
+    created_at      timestamptz  NOT NULL DEFAULT now(),
+    updated_at      timestamptz  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS verification_tokens_lookup_idx
+    ON public.verification_tokens (target_user_id, purpose, code, consumed, created_at);
+
+DROP TRIGGER IF EXISTS set_verification_tokens_updated_at
+    ON public.verification_tokens;
+CREATE TRIGGER set_verification_tokens_updated_at
+    BEFORE UPDATE ON public.verification_tokens
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+-- ============================================================================
 --  Core recruiting domain tables
 -- ============================================================================
-CREATE SCHEMA IF NOT EXISTS app_public;
-
-CREATE TABLE IF NOT EXISTS app_public.jobs (
+CREATE TABLE IF NOT EXISTS public.jobs (
     id          uuid PRIMARY KEY,
     job_title   varchar(255) NOT NULL,
     description text,
@@ -56,13 +159,13 @@ CREATE TABLE IF NOT EXISTS app_public.jobs (
 );
 
 DROP TRIGGER IF EXISTS set_jobs_updated_at
-    ON app_public.jobs;
+    ON public.jobs;
 CREATE TRIGGER set_jobs_updated_at
-    BEFORE UPDATE ON app_public.jobs
+    BEFORE UPDATE ON public.jobs
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 
-CREATE TABLE IF NOT EXISTS app_public.candidates (
+CREATE TABLE IF NOT EXISTS public.candidates (
     id         uuid PRIMARY KEY,
     name       varchar(255) NOT NULL,
     email      varchar(255),
@@ -73,40 +176,40 @@ CREATE TABLE IF NOT EXISTS app_public.candidates (
 );
 
 CREATE INDEX IF NOT EXISTS candidates_email_idx
-    ON app_public.candidates (email);
+    ON public.candidates (email);
 
 DROP TRIGGER IF EXISTS set_candidates_updated_at
-    ON app_public.candidates;
+    ON public.candidates;
 CREATE TRIGGER set_candidates_updated_at
-    BEFORE UPDATE ON app_public.candidates
+    BEFORE UPDATE ON public.candidates
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 
-CREATE TABLE IF NOT EXISTS app_public.interviews (
+CREATE TABLE IF NOT EXISTS public.interviews (
     id             uuid PRIMARY KEY,
-    candidate_id   uuid REFERENCES app_public.candidates (id) ON DELETE SET NULL,
-    job_id         uuid REFERENCES app_public.jobs (id) ON DELETE SET NULL,
-    scheduled_time timestamptz,
+    candidate_id   uuid REFERENCES public.candidates (id) ON DELETE SET NULL,
+    job_id         uuid REFERENCES public.jobs (id) ON DELETE SET NULL,
+    scheduled_time varchar(64),
     status         varchar(50) NOT NULL,
     created_at     timestamptz NOT NULL DEFAULT now(),
     updated_at     timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS interviews_candidate_idx
-    ON app_public.interviews (candidate_id);
+    ON public.interviews (candidate_id);
 CREATE INDEX IF NOT EXISTS interviews_job_idx
-    ON app_public.interviews (job_id);
+    ON public.interviews (job_id);
 
 DROP TRIGGER IF EXISTS set_interviews_updated_at
-    ON app_public.interviews;
+    ON public.interviews;
 CREATE TRIGGER set_interviews_updated_at
-    BEFORE UPDATE ON app_public.interviews
+    BEFORE UPDATE ON public.interviews
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 
-CREATE TABLE IF NOT EXISTS app_public.reports (
+CREATE TABLE IF NOT EXISTS public.reports (
     report_id          uuid PRIMARY KEY,
-    interview_id       uuid NOT NULL REFERENCES app_public.interviews (id) ON DELETE CASCADE,
+    interview_id       uuid NOT NULL REFERENCES public.interviews (id) ON DELETE CASCADE,
     content            text,
     score              real,
     evaluator_comment  text,
@@ -115,12 +218,12 @@ CREATE TABLE IF NOT EXISTS app_public.reports (
 );
 
 CREATE INDEX IF NOT EXISTS reports_interview_idx
-    ON app_public.reports (interview_id);
+    ON public.reports (interview_id);
 
 DROP TRIGGER IF EXISTS set_reports_updated_at
-    ON app_public.reports;
+    ON public.reports;
 CREATE TRIGGER set_reports_updated_at
-    BEFORE UPDATE ON app_public.reports
+    BEFORE UPDATE ON public.reports
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 

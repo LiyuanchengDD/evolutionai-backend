@@ -10,5 +10,5 @@ import java.util.Optional;
  */
 public interface UserAccountRepository extends JpaRepository<UserAccountEntity, String> {
 
-    Optional<UserAccountEntity> findByUsernameAndRole(String username, String role);
+    Optional<UserAccountEntity> findByEmailAndRole(String email, String role);
 }
