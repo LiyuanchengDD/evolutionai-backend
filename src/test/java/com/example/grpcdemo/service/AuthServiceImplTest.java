@@ -53,7 +53,7 @@ class AuthServiceImplTest {
         UserResponse registered = registerObserver.getValues().get(0);
         assertThat(registered.getUserId()).isNotBlank();
         assertThat(registered.getUsername()).isEqualTo("valid-user");
-        assertThat(registered.getRole()).isEqualTo("ADMIN");
+        assertThat(registered.getRole()).isEqualTo("admin");
 
         userRepository.flush();
         UserAccountEntity persisted =
@@ -78,7 +78,7 @@ class AuthServiceImplTest {
         UserResponse loginResponse = loginObserver.getValues().get(0);
         assertThat(loginResponse.getUserId()).isEqualTo(registered.getUserId());
         assertThat(loginResponse.getUsername()).isEqualTo("valid-user");
-        assertThat(loginResponse.getRole()).isEqualTo("ADMIN");
+        assertThat(loginResponse.getRole()).isEqualTo("admin");
         assertThat(loginResponse.getAccessToken()).isNotBlank();
     }
 
@@ -87,7 +87,7 @@ class AuthServiceImplTest {
         RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
                 .setUsername("invalid-user")
                 .setPassword("correct-password")
-                .setRole("USER")
+                .setRole("COMPANY")
                 .build();
 
         TestStreamObserver<UserResponse> registerObserver = new TestStreamObserver<>();
@@ -98,7 +98,7 @@ class AuthServiceImplTest {
         LoginRequest loginRequest = LoginRequest.newBuilder()
                 .setUsername("invalid-user")
                 .setPassword("wrong-password")
-                .setRole("USER")
+                .setRole("COMPANY")
                 .build();
 
         authService.loginUser(loginRequest, loginObserver);
@@ -115,7 +115,7 @@ class AuthServiceImplTest {
         RegisterUserRequest registerRequest = RegisterUserRequest.newBuilder()
                 .setUsername("duplicate-user")
                 .setPassword("password")
-                .setRole("USER")
+                .setRole("ENGINEER")
                 .build();
 
         TestStreamObserver<UserResponse> firstObserver = new TestStreamObserver<>();

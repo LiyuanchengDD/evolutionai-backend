@@ -1,6 +1,7 @@
 package com.example.grpcdemo.auth;
 
 import com.example.grpcdemo.entity.UserAccountEntity;
+import com.example.grpcdemo.entity.UserAccountStatus;
 import com.example.grpcdemo.repository.UserAccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,13 +121,13 @@ public class AuthManager {
 
         codeStore.put(codeKey, record.markConsumed());
 
-        if (userRepository.findByUsernameAndRole(normalizedEmail, role.alias()).isPresent()) {
+        if (userRepository.findByEmailAndRole(normalizedEmail, role.alias()).isPresent()) {
             throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS);
         }
 
         String userId = UUID.randomUUID().toString();
         String hashed = passwordEncoder.encode(password);
-        UserAccountEntity entity = new UserAccountEntity(userId, normalizedEmail, hashed, role.alias());
+        UserAccountEntity entity = new UserAccountEntity(userId, normalizedEmail, hashed, role.alias(), UserAccountStatus.ACTIVE);
         userRepository.save(entity);
 
         return createSession(entity);
@@ -135,11 +136,16 @@ public class AuthManager {
     public AuthSession login(String email, String password, AuthRole role) {
         String normalizedEmail = normalizeEmail(email);
         validateEmail(normalizedEmail);
-        UserAccountEntity user = userRepository.findByUsernameAndRole(normalizedEmail, role.alias())
+        UserAccountEntity user = userRepository.findByEmailAndRole(normalizedEmail, role.alias())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_CREDENTIALS));
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new AuthException(AuthErrorCode.INVALID_CREDENTIALS);
         }
+        user.setLastLoginAt(clock.instant());
+        if (user.getStatus() == UserAccountStatus.PENDING) {
+            user.setStatus(UserAccountStatus.ACTIVE);
+        }
+        userRepository.save(user);
         return createSession(user);
     }
 
@@ -152,7 +158,7 @@ public class AuthManager {
         if (requireExistingUser) {
             requireExistingUser(normalizedEmail, role);
         } else if (purpose == VerificationPurpose.REGISTER
-                && userRepository.findByUsernameAndRole(normalizedEmail, role.alias()).isPresent()) {
+                && userRepository.findByEmailAndRole(normalizedEmail, role.alias()).isPresent()) {
             throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS);
         }
 
@@ -186,7 +192,7 @@ public class AuthManager {
         String accessToken = UUID.randomUUID().toString();
         String refreshToken = UUID.randomUUID().toString();
         AuthRole role = AuthRole.fromAlias(user.getRole());
-        return new AuthSession(user.getUserId(), user.getUsername(), role, accessToken, refreshToken);
+        return new AuthSession(user.getUserId(), user.getEmail(), role, accessToken, refreshToken);
     }
 
     private long remainingSeconds(VerificationCodeRecord record, Instant now) {
@@ -224,7 +230,7 @@ public class AuthManager {
     }
 
     private UserAccountEntity requireExistingUser(String email, AuthRole role) {
-        return userRepository.findByUsernameAndRole(email, role.alias())
+        return userRepository.findByEmailAndRole(email, role.alias())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND, "该邮箱尚未注册"));
     }
 

@@ -20,10 +20,10 @@ public final class JwtUtil {
     private JwtUtil() {
     }
 
-    public static String generateToken(String userId, String username, String role) {
+    public static String generateToken(String userId, String email, String role) {
         return JWT.create()
                 .withSubject(userId)
-                .withClaim("username", username)
+                .withClaim("email", email)
                 .withClaim("role", role)
                 .withExpiresAt(Date.from(Instant.now().plusSeconds(3600)))
                 .sign(ALGORITHM);
