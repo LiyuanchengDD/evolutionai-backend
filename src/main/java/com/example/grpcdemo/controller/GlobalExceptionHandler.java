@@ -3,6 +3,8 @@ package com.example.grpcdemo.controller;
 import com.example.grpcdemo.auth.AuthErrorCode;
 import com.example.grpcdemo.auth.AuthException;
 import com.example.grpcdemo.controller.dto.ErrorResponse;
+import com.example.grpcdemo.onboarding.OnboardingErrorCode;
+import com.example.grpcdemo.onboarding.OnboardingException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -32,5 +34,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(AuthErrorCode.INVALID_ROLE.name(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(OnboardingException.class)
+    public ResponseEntity<ErrorResponse> handleOnboardingException(OnboardingException exception) {
+        OnboardingErrorCode code = exception.getErrorCode();
+        String message = exception.getMessage() != null ? exception.getMessage() : code.getDefaultMessage();
+        return ResponseEntity.status(code.getHttpStatus())
+                .body(new ErrorResponse(code.name(), message));
     }
 }
