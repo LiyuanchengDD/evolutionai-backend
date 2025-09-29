@@ -24,7 +24,7 @@ public class EnterpriseStep2Request {
     private String phoneCountryCode;
 
     @NotBlank(message = "手机号不能为空")
-    @Pattern(regexp = "^[0-9+\-]{4,32}$", message = "手机号格式不正确")
+    @Pattern(regexp = "^[0-9+\\-]{4,32}$", message = "手机号格式不正确")
     private String phoneNumber;
 
     @Size(max = 128, message = "职位名称长度需小于 128 个字符")
