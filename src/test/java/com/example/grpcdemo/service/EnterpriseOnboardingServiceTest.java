@@ -10,6 +10,7 @@ import com.example.grpcdemo.onboarding.AnnualHiringPlan;
 import com.example.grpcdemo.onboarding.EmployeeScale;
 import com.example.grpcdemo.repository.CompanyContactRepository;
 import com.example.grpcdemo.repository.CompanyProfileRepository;
+import com.example.grpcdemo.repository.CompanyRecruitingPositionRepository;
 import com.example.grpcdemo.repository.EnterpriseOnboardingSessionRepository;
 import com.example.grpcdemo.repository.InvitationTemplateRepository;
 import com.example.grpcdemo.repository.VerificationTokenRepository;
@@ -24,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,6 +57,9 @@ class EnterpriseOnboardingServiceTest {
 
     @Mock
     private LocationCatalog locationCatalog;
+
+    @Mock
+    private CompanyRecruitingPositionRepository companyRecruitingPositionRepository;
 
     private ObjectMapper objectMapper;
 
@@ -96,6 +101,7 @@ class EnterpriseOnboardingServiceTest {
                 invitationTemplateRepository,
                 verificationTokenRepository,
                 sessionRepository,
+                companyRecruitingPositionRepository,
                 objectMapper,
                 locationCatalog,
                 fixedClock);
@@ -112,6 +118,8 @@ class EnterpriseOnboardingServiceTest {
         request.setIndustry("互联网");
         request.setWebsite("https://example.com");
         request.setDescription("测试企业简介");
+        request.setDetailedAddress("北京市朝阳区建国路 99 号");
+        request.setRecruitingPositions(List.of("后端工程师"));
 
         initialService.saveStep1(request, "zh");
 
@@ -121,6 +129,7 @@ class EnterpriseOnboardingServiceTest {
                 invitationTemplateRepository,
                 verificationTokenRepository,
                 sessionRepository,
+                companyRecruitingPositionRepository,
                 objectMapper,
                 locationCatalog,
                 fixedClock);
@@ -138,6 +147,8 @@ class EnterpriseOnboardingServiceTest {
         assertEquals("北京市", state.getCompanyInfo().getCityDisplayName());
         assertEquals(EmployeeScale.LESS_THAN_FIFTY, state.getCompanyInfo().getEmployeeScale());
         assertEquals(AnnualHiringPlan.ONE_TO_TEN, state.getCompanyInfo().getAnnualHiringPlan());
+        assertEquals("北京市朝阳区建国路 99 号", state.getCompanyInfo().getDetailedAddress());
+        assertEquals(List.of("后端工程师"), state.getCompanyInfo().getRecruitingPositions());
         assertNotNull(state.getRecords());
         assertFalse(state.getRecords().isEmpty());
         OnboardingStepRecordDto record = state.getRecords().get(0);
@@ -156,6 +167,8 @@ class EnterpriseOnboardingServiceTest {
         updated.setIndustry("互联网");
         updated.setWebsite("https://example.com");
         updated.setDescription("更新后的简介");
+        updated.setDetailedAddress("上海市浦东新区张江路 188 号");
+        updated.setRecruitingPositions(List.of("AI 研究员", "后端工程师"));
 
         reloadedService.saveStep1(updated, "zh");
 
@@ -165,6 +178,7 @@ class EnterpriseOnboardingServiceTest {
                 invitationTemplateRepository,
                 verificationTokenRepository,
                 sessionRepository,
+                companyRecruitingPositionRepository,
                 objectMapper,
                 locationCatalog,
                 fixedClock);

@@ -12,6 +12,7 @@ import com.example.grpcdemo.controller.dto.OnboardingStateResponse;
 import com.example.grpcdemo.controller.dto.OnboardingStepRecordDto;
 import com.example.grpcdemo.entity.CompanyContactEntity;
 import com.example.grpcdemo.entity.CompanyProfileEntity;
+import com.example.grpcdemo.entity.CompanyRecruitingPositionEntity;
 import com.example.grpcdemo.entity.EnterpriseOnboardingSessionEntity;
 import com.example.grpcdemo.entity.InvitationTemplateEntity;
 import com.example.grpcdemo.entity.VerificationTokenEntity;
@@ -25,6 +26,7 @@ import com.example.grpcdemo.onboarding.OnboardingErrorCode;
 import com.example.grpcdemo.onboarding.OnboardingException;
 import com.example.grpcdemo.repository.CompanyContactRepository;
 import com.example.grpcdemo.repository.CompanyProfileRepository;
+import com.example.grpcdemo.repository.CompanyRecruitingPositionRepository;
 import com.example.grpcdemo.repository.InvitationTemplateRepository;
 import com.example.grpcdemo.repository.EnterpriseOnboardingSessionRepository;
 import com.example.grpcdemo.repository.VerificationTokenRepository;
@@ -114,6 +116,7 @@ public class EnterpriseOnboardingService {
     private final InvitationTemplateRepository invitationTemplateRepository;
     private final VerificationTokenRepository verificationTokenRepository;
     private final EnterpriseOnboardingSessionRepository sessionRepository;
+    private final CompanyRecruitingPositionRepository recruitingPositionRepository;
     private final LocationCatalog locationCatalog;
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -123,6 +126,7 @@ public class EnterpriseOnboardingService {
                                        InvitationTemplateRepository invitationTemplateRepository,
                                        VerificationTokenRepository verificationTokenRepository,
                                        EnterpriseOnboardingSessionRepository sessionRepository,
+                                       CompanyRecruitingPositionRepository recruitingPositionRepository,
                                        ObjectMapper objectMapper,
                                        LocationCatalog locationCatalog) {
         this(companyProfileRepository,
@@ -130,6 +134,7 @@ public class EnterpriseOnboardingService {
                 invitationTemplateRepository,
                 verificationTokenRepository,
                 sessionRepository,
+                recruitingPositionRepository,
                 objectMapper,
                 locationCatalog,
                 Clock.systemUTC());
@@ -140,6 +145,7 @@ public class EnterpriseOnboardingService {
                                 InvitationTemplateRepository invitationTemplateRepository,
                                 VerificationTokenRepository verificationTokenRepository,
                                 EnterpriseOnboardingSessionRepository sessionRepository,
+                                CompanyRecruitingPositionRepository recruitingPositionRepository,
                                 ObjectMapper objectMapper,
                                 LocationCatalog locationCatalog,
                                 Clock clock) {
@@ -148,6 +154,7 @@ public class EnterpriseOnboardingService {
         this.invitationTemplateRepository = invitationTemplateRepository;
         this.verificationTokenRepository = verificationTokenRepository;
         this.sessionRepository = sessionRepository;
+        this.recruitingPositionRepository = recruitingPositionRepository;
         this.locationCatalog = locationCatalog;
         this.objectMapper = objectMapper;
         this.clock = clock;
@@ -187,7 +194,9 @@ public class EnterpriseOnboardingService {
                     request.getAnnualHiringPlan(),
                     request.getIndustry(),
                     request.getWebsite(),
-                    request.getDescription()
+                    request.getDescription(),
+                    request.getDetailedAddress(),
+                    sanitizeRecruitingPositions(request.getRecruitingPositions())
             );
             Instant now = clock.instant();
             session.setStep1(data, now);
@@ -284,10 +293,15 @@ public class EnterpriseOnboardingService {
             CompanyProfileEntity profile = createCompanyProfileEntity(step1, request.getUserId(), companyId, now);
             CompanyContactEntity contact = createContactEntity(step2, companyId, now);
             InvitationTemplateEntity template = createTemplateEntity(step3, companyId, now);
+            List<CompanyRecruitingPositionEntity> recruitingPositions =
+                    createRecruitingPositionEntities(step1.recruitingPositions, companyId, now);
 
             companyProfileRepository.save(profile);
             companyContactRepository.save(contact);
             invitationTemplateRepository.save(template);
+            if (!recruitingPositions.isEmpty()) {
+                recruitingPositionRepository.saveAll(recruitingPositions);
+            }
 
             List<OnboardingStepRecordDto> records = session.toRecordDtos();
             sessions.remove(request.getUserId());
@@ -651,6 +665,7 @@ public class EnterpriseOnboardingService {
         profile.setIndustry(data.industry);
         profile.setWebsite(data.website);
         profile.setDescription(data.description);
+        profile.setDetailedAddress(data.detailedAddress);
         profile.setStatus(CompanyStatus.ACTIVE);
         profile.setCreatedAt(now);
         profile.setUpdatedAt(now);
@@ -702,6 +717,8 @@ public class EnterpriseOnboardingService {
         dto.setIndustry(data.industry);
         dto.setWebsite(data.website);
         dto.setDescription(data.description);
+        dto.setDetailedAddress(data.detailedAddress);
+        dto.setRecruitingPositions(data.recruitingPositions);
         locationCatalog.findCountry(data.countryCode, locale)
                 .ifPresent(option -> dto.setCountryDisplayName(option.name()));
         if (!StringUtils.hasText(dto.getCountryDisplayName())) {
@@ -727,6 +744,8 @@ public class EnterpriseOnboardingService {
         dto.setIndustry(entity.getIndustry());
         dto.setWebsite(entity.getWebsite());
         dto.setDescription(entity.getDescription());
+        dto.setDetailedAddress(entity.getDetailedAddress());
+        dto.setRecruitingPositions(loadRecruitingPositions(entity.getCompanyId()));
         locationCatalog.findCountry(entity.getCountryCode(), locale)
                 .ifPresent(option -> dto.setCountryDisplayName(option.name()));
         locationCatalog.findCity(entity.getCountryCode(), entity.getCityCode(), locale)
@@ -738,6 +757,50 @@ public class EnterpriseOnboardingService {
             dto.setCityDisplayName(entity.getCityCode());
         }
         return dto;
+    }
+
+    private List<String> loadRecruitingPositions(String companyId) {
+        if (recruitingPositionRepository == null || !StringUtils.hasText(companyId)) {
+            return Collections.emptyList();
+        }
+        return recruitingPositionRepository.findByCompanyId(companyId).stream()
+                .map(CompanyRecruitingPositionEntity::getPositionName)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .collect(Collectors.toList());
+    }
+
+    private List<String> sanitizeRecruitingPositions(List<String> positions) {
+        if (positions == null || positions.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> sanitized = positions.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .limit(50)
+                .collect(Collectors.toList());
+        return Collections.unmodifiableList(sanitized);
+    }
+
+    private List<CompanyRecruitingPositionEntity> createRecruitingPositionEntities(List<String> positions,
+                                                                                  String companyId,
+                                                                                  Instant now) {
+        if (positions == null || positions.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<CompanyRecruitingPositionEntity> entities = new ArrayList<>(positions.size());
+        for (String name : positions) {
+            CompanyRecruitingPositionEntity entity = new CompanyRecruitingPositionEntity();
+            entity.setPositionId(UUID.randomUUID().toString());
+            entity.setCompanyId(companyId);
+            entity.setPositionName(name);
+            entity.setCreatedAt(now);
+            entity.setUpdatedAt(now);
+            entities.add(entity);
+        }
+        return entities;
     }
 
     private EnterpriseContactInfoDto toContactDto(Step2Data data) {
@@ -928,7 +991,9 @@ public class EnterpriseOnboardingService {
                              AnnualHiringPlan annualHiringPlan,
                              String industry,
                              String website,
-                             String description) {
+                             String description,
+                             String detailedAddress,
+                             List<String> recruitingPositions) {
         Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("companyName", companyName);
@@ -943,6 +1008,8 @@ public class EnterpriseOnboardingService {
             map.put("industry", industry);
             map.put("website", website);
             map.put("description", description);
+            map.put("detailedAddress", detailedAddress);
+            map.put("recruitingPositions", recruitingPositions);
             return map;
         }
     }

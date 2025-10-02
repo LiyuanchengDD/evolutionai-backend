@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
+
 /**
  * Request payload for enterprise onboarding step 1 - company profile basics.
  */
@@ -43,6 +45,11 @@ public class EnterpriseStep1Request {
 
     @Size(max = 1000, message = "企业简介长度需小于 1000 个字符")
     private String description;
+
+    @Size(max = 255, message = "详细地址长度需小于 255 个字符")
+    private String detailedAddress;
+
+    private List<String> recruitingPositions;
 
     public String getUserId() {
         return userId;
@@ -130,5 +137,21 @@ public class EnterpriseStep1Request {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getDetailedAddress() {
+        return detailedAddress;
+    }
+
+    public void setDetailedAddress(String detailedAddress) {
+        this.detailedAddress = detailedAddress;
+    }
+
+    public List<String> getRecruitingPositions() {
+        return recruitingPositions;
+    }
+
+    public void setRecruitingPositions(List<String> recruitingPositions) {
+        this.recruitingPositions = recruitingPositions;
     }
 }

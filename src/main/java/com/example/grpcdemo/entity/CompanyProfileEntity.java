@@ -58,6 +58,9 @@ public class CompanyProfileEntity {
     @Column(name = "description", length = 1000)
     private String description;
 
+    @Column(name = "detailed_address", length = 255)
+    private String detailedAddress;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
     private CompanyStatus status;
@@ -162,6 +165,14 @@ public class CompanyProfileEntity {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getDetailedAddress() {
+        return detailedAddress;
+    }
+
+    public void setDetailedAddress(String detailedAddress) {
+        this.detailedAddress = detailedAddress;
     }
 
     public CompanyStatus getStatus() {

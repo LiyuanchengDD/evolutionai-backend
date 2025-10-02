@@ -145,7 +145,9 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
   - `userId`（必填）—— 当前登录用户 ID。
   - `companyName`（必填）—— 企业全称。
   - `companyShortName`、`socialCreditCode`、`industry`、`website`、`description`（选填）。
+  - `detailedAddress`（选填）—— 企业详细地址，会回显在 `companyInfo.detailedAddress` 字段。
   - `country`、`city`、`employeeScale`、`annualHiringPlan`（均为必填）—— 国家与城市使用 ISO 代码（`country` 为 ISO 3166-1 alpha-2，`city` 为 ISO 3166-2），后端会校验组合合法性；企业规模枚举见 `EmployeeScale`，年度招聘计划枚举见 `AnnualHiringPlan`。
+  - `recruitingPositions`（选填）—— 正在招聘的岗位名称列表，后端会去重、截断到 50 条，并在 `GET /state` 的 `companyInfo.recruitingPositions` 中返回；在最终校验通过时会写入 `company_recruiting_positions` 表。
 - **行为说明**：服务端会把本步骤数据写入会话专用的临时 List，并将 `currentStep` 推进到 2。【F:src/main/java/com/example/grpcdemo/controller/dto/EnterpriseStep1Request.java†L14-L109】【F:src/main/java/com/example/grpcdemo/onboarding/EmployeeScale.java†L6-L41】【F:src/main/java/com/example/grpcdemo/onboarding/AnnualHiringPlan.java†L6-L41】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L129-L229】
   - 国家 & 城市下拉列表可通过新增接口获取：`GET /api/enterprise/onboarding/locations/countries` 返回所有国家（响应字段 `code`=`ISO 3166-1 alpha-2`），`GET /api/enterprise/onboarding/locations/cities?country={code}` 返回对应国家的 ISO 3166-2 省/州/直辖市列表。两个接口均支持 `Accept-Language` (`zh`/`en`/`jp`) 自动本地化显示名称。【F:src/main/java/com/example/grpcdemo/controller/EnterpriseOnboardingController.java†L32-L63】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L247-L310】【F:src/main/java/com/example/grpcdemo/location/LocationCatalog.java†L13-L125】
 
@@ -173,6 +175,7 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 - **行为说明**：
   1. 按 `userId`、`purpose=ENTERPRISE_ONBOARDING` 查找未消费且未过期的验证码记录；过期或不存在会返回 `INVALID_VERIFICATION_CODE`/`VERIFICATION_CODE_EXPIRED`。
   2. 校验通过后将验证码标记为已使用，并把三个步骤的草稿一次性写入正式表：`company_profiles`、`company_contacts`、`invitation_templates`。
+     - 企业详细地址会落库到 `company_profiles.detailed_address`，岗位列表会拆分为多条写入 `company_recruiting_positions`。
   3. 返回的 `OnboardingStateResponse` 会带上 `completed=true` 和新生成的 `companyId`，临时 List 同时清空。【F:src/main/java/com/example/grpcdemo/controller/dto/EnterpriseVerifyRequest.java†L14-L55】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L187-L267】【F:src/main/java/com/example/grpcdemo/entity/CompanyProfileEntity.java†L16-L120】【F:src/main/java/com/example/grpcdemo/entity/CompanyContactEntity.java†L15-L113】【F:src/main/java/com/example/grpcdemo/entity/InvitationTemplateEntity.java†L15-L113】【F:src/main/java/com/example/grpcdemo/entity/VerificationTokenEntity.java†L15-L117】
 
 ## Candidate management flows
