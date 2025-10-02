@@ -371,6 +371,7 @@ public class EnterpriseOnboardingService {
 
     private OnboardingStateResponse buildStateFromSession(EnterpriseOnboardingSession session, String preferredLanguage) {
         Locale locale = resolveLocale(preferredLanguage);
+
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(session.getUserId());
         response.setCurrentStep(session.getCurrentStep());
@@ -378,7 +379,10 @@ public class EnterpriseOnboardingService {
         response.setCompanyInfo(session.getStep1() != null ? toCompanyDto(session.getStep1(), locale) : null);
         response.setContactInfo(session.getStep2() != null ? toContactDto(session.getStep2()) : null);
         response.setTemplateInfo(session.getStep3() != null ? toTemplateDto(session.getStep3()) : null);
+
         response.setRecords(localizeRecords(session.toRecordDtos(), locale));
+        response.setRecords(session.toRecordDtos());
+      
         Step3Data step3 = session.getStep3();
         return populateAvailableVariables(response, preferredLanguage, step3 != null ? step3.language : null);
     }
@@ -391,6 +395,7 @@ public class EnterpriseOnboardingService {
                                                         List<OnboardingStepRecordDto> records,
                                                         String preferredLanguage) {
         Locale locale = resolveLocale(preferredLanguage);
+
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(userId);
         response.setCompanyId(companyId);
@@ -399,7 +404,10 @@ public class EnterpriseOnboardingService {
         response.setCompanyInfo(toCompanyDto(step1, locale));
         response.setContactInfo(toContactDto(step2));
         response.setTemplateInfo(toTemplateDto(step3));
+
         response.setRecords(localizeRecords(records, locale));
+        response.setRecords(records);
+
         return populateAvailableVariables(response, preferredLanguage, step3 != null ? step3.language : null);
     }
 
@@ -408,6 +416,7 @@ public class EnterpriseOnboardingService {
                                                                        CompanyContactEntity contact,
                                                                        InvitationTemplateEntity template,
                                                                        String preferredLanguage) {
+
         Locale locale = resolveLocale(preferredLanguage);
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(userId);
@@ -473,6 +482,7 @@ public class EnterpriseOnboardingService {
         }
         return variables;
     }
+
 
     private Locale resolveLocale(String preferredLanguage) {
         String language = determineLanguage(preferredLanguage, null);

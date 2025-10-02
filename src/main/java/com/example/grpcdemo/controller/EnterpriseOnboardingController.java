@@ -35,6 +35,7 @@ public class EnterpriseOnboardingController {
     public OnboardingStateResponse getState(@RequestParam("userId") String userId,
                                             @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
         return onboardingService.getState(userId, acceptLanguage);
+
     }
 
     @GetMapping("/locations/countries")
@@ -46,6 +47,7 @@ public class EnterpriseOnboardingController {
     public List<LocationOptionDto> listCities(@RequestParam("country") String countryCode,
                                              @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
         return onboardingService.listCities(countryCode, acceptLanguage);
+
     }
 
     @PostMapping("/step1")
