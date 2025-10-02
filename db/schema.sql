@@ -31,6 +31,31 @@ CREATE TABLE IF NOT EXISTS public.user_accounts (
 CREATE INDEX IF NOT EXISTS user_accounts_email_idx
     ON public.user_accounts (email);
 
+CREATE TABLE IF NOT EXISTS public.auth_verification_codes (
+    code_id      uuid PRIMARY KEY,
+    email        varchar(255) NOT NULL,
+    role         varchar(32)  NOT NULL,
+    purpose      varchar(32)  NOT NULL,
+    code         varchar(16)  NOT NULL,
+    expires_at   timestamptz  NOT NULL,
+    consumed     boolean      NOT NULL DEFAULT false,
+    last_sent_at timestamptz  NOT NULL,
+    request_id   uuid         NOT NULL,
+    created_at   timestamptz  NOT NULL DEFAULT now(),
+    updated_at   timestamptz  NOT NULL DEFAULT now(),
+    CONSTRAINT auth_verification_codes_role_check CHECK (role IN ('company', 'engineer', 'admin'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS auth_verification_codes_lookup_idx
+    ON public.auth_verification_codes (email, role, purpose);
+
+DROP TRIGGER IF EXISTS set_auth_verification_codes_updated_at
+    ON public.auth_verification_codes;
+CREATE TRIGGER set_auth_verification_codes_updated_at
+    BEFORE UPDATE ON public.auth_verification_codes
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger AS $$
 BEGIN
@@ -122,6 +147,25 @@ CREATE TRIGGER set_invitation_templates_updated_at
 CREATE UNIQUE INDEX IF NOT EXISTS invitation_templates_company_default_uidx
     ON public.invitation_templates (company_id)
     WHERE is_default;
+
+CREATE TABLE IF NOT EXISTS public.enterprise_onboarding_sessions (
+    user_id       uuid PRIMARY KEY,
+    current_step  integer      NOT NULL,
+    step1_data    text,
+    step2_data    text,
+    step3_data    text,
+    records_data  text,
+    expires_at    timestamptz  NOT NULL,
+    created_at    timestamptz  NOT NULL DEFAULT now(),
+    updated_at    timestamptz  NOT NULL DEFAULT now()
+);
+
+DROP TRIGGER IF EXISTS set_enterprise_onboarding_sessions_updated_at
+    ON public.enterprise_onboarding_sessions;
+CREATE TRIGGER set_enterprise_onboarding_sessions_updated_at
+    BEFORE UPDATE ON public.enterprise_onboarding_sessions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
 
 CREATE TABLE IF NOT EXISTS public.verification_tokens (
     token_id        uuid PRIMARY KEY,

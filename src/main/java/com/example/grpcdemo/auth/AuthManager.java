@@ -1,7 +1,9 @@
 package com.example.grpcdemo.auth;
 
+import com.example.grpcdemo.entity.AuthVerificationCodeEntity;
 import com.example.grpcdemo.entity.UserAccountEntity;
 import com.example.grpcdemo.entity.UserAccountStatus;
+import com.example.grpcdemo.repository.AuthVerificationCodeRepository;
 import com.example.grpcdemo.repository.UserAccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,10 +15,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 @Component
@@ -27,25 +27,29 @@ public class AuthManager {
     private static final Duration RESEND_INTERVAL = Duration.ofMinutes(1);
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
-    private final Map<String, VerificationCodeRecord> codeStore = new ConcurrentHashMap<>();
     private final UserAccountRepository userRepository;
+    private final AuthVerificationCodeRepository verificationCodeRepository;
     private final PasswordEncoder passwordEncoder;
     private final VerificationCodeSender verificationCodeSender;
     private final SecureRandom random;
     private final Clock clock;
 
     public AuthManager(UserAccountRepository userRepository,
+                       AuthVerificationCodeRepository verificationCodeRepository,
                        PasswordEncoder passwordEncoder,
                        VerificationCodeSender verificationCodeSender) {
-        this(userRepository, passwordEncoder, verificationCodeSender, new SecureRandom(), Clock.systemUTC());
+        this(userRepository, verificationCodeRepository, passwordEncoder, verificationCodeSender, new SecureRandom(),
+                Clock.systemUTC());
     }
 
     AuthManager(UserAccountRepository userRepository,
+                AuthVerificationCodeRepository verificationCodeRepository,
                 PasswordEncoder passwordEncoder,
                 VerificationCodeSender verificationCodeSender,
                 SecureRandom random,
                 Clock clock) {
         this.userRepository = userRepository;
+        this.verificationCodeRepository = verificationCodeRepository;
         this.passwordEncoder = passwordEncoder;
         this.verificationCodeSender = verificationCodeSender;
         this.random = random;
@@ -74,23 +78,25 @@ public class AuthManager {
         validateEmail(normalizedEmail);
         validatePassword(newPassword);
 
-        String codeKey = codeKey(normalizedEmail, role, VerificationPurpose.RESET_PASSWORD);
-        VerificationCodeRecord record = codeStore.get(codeKey);
-        if (record == null || record.consumed()) {
+        Instant now = clock.instant();
+        verificationCodeRepository.deleteByExpiresAtBefore(now);
+        AuthVerificationCodeEntity record = verificationCodeRepository
+                .findByEmailAndRoleAndPurpose(normalizedEmail, role.alias(), VerificationPurpose.RESET_PASSWORD)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.CODE_NOT_FOUND));
+        if (record.isConsumed()) {
             throw new AuthException(AuthErrorCode.CODE_NOT_FOUND);
         }
-
-        Instant now = clock.instant();
-        if (now.isAfter(record.expireAt())) {
-            codeStore.remove(codeKey);
+        if (now.isAfter(record.getExpiresAt())) {
+            verificationCodeRepository.deleteById(record.getCodeId());
             throw new AuthException(AuthErrorCode.CODE_EXPIRED);
         }
-
-        if (!Objects.equals(record.code(), verificationCode)) {
+        if (!Objects.equals(record.getCode(), verificationCode)) {
             throw new AuthException(AuthErrorCode.CODE_MISMATCH);
         }
 
-        codeStore.put(codeKey, record.markConsumed());
+        record.setConsumed(true);
+        record.setUpdatedAt(now);
+        verificationCodeRepository.save(record);
 
         UserAccountEntity user = requireExistingUser(normalizedEmail, role);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
@@ -103,23 +109,25 @@ public class AuthManager {
         validateEmail(normalizedEmail);
         validatePassword(password);
 
-        String codeKey = codeKey(normalizedEmail, role, VerificationPurpose.REGISTER);
-        VerificationCodeRecord record = codeStore.get(codeKey);
-        if (record == null || record.consumed()) {
+        Instant now = clock.instant();
+        verificationCodeRepository.deleteByExpiresAtBefore(now);
+        AuthVerificationCodeEntity record = verificationCodeRepository
+                .findByEmailAndRoleAndPurpose(normalizedEmail, role.alias(), VerificationPurpose.REGISTER)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.CODE_NOT_FOUND));
+        if (record.isConsumed()) {
             throw new AuthException(AuthErrorCode.CODE_NOT_FOUND);
         }
-
-        Instant now = clock.instant();
-        if (now.isAfter(record.expireAt())) {
-            codeStore.remove(codeKey);
+        if (now.isAfter(record.getExpiresAt())) {
+            verificationCodeRepository.deleteById(record.getCodeId());
             throw new AuthException(AuthErrorCode.CODE_EXPIRED);
         }
-
-        if (!Objects.equals(record.code(), verificationCode)) {
+        if (!Objects.equals(record.getCode(), verificationCode)) {
             throw new AuthException(AuthErrorCode.CODE_MISMATCH);
         }
 
-        codeStore.put(codeKey, record.markConsumed());
+        record.setConsumed(true);
+        record.setUpdatedAt(now);
+        verificationCodeRepository.save(record);
 
         if (userRepository.findByEmailAndRole(normalizedEmail, role.alias()).isPresent()) {
             throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS);
@@ -163,18 +171,36 @@ public class AuthManager {
         }
 
         Instant now = clock.instant();
-        String key = codeKey(normalizedEmail, role, purpose);
+        verificationCodeRepository.deleteByExpiresAtBefore(now);
 
-        VerificationCodeRecord existing = codeStore.get(key);
-        if (existing != null && Duration.between(existing.lastSentAt(), now).compareTo(RESEND_INTERVAL) < 0) {
+        AuthVerificationCodeEntity existing = verificationCodeRepository
+                .findByEmailAndRoleAndPurpose(normalizedEmail, role.alias(), purpose)
+                .orElse(null);
+        if (existing != null && Duration.between(existing.getLastSentAt(), now).compareTo(RESEND_INTERVAL) < 0) {
             throw new AuthException(AuthErrorCode.CODE_REQUEST_TOO_FREQUENT,
-                    "请在" + remainingSeconds(existing, now) + "秒后再试");
+                    "请在" + remainingSeconds(existing.getLastSentAt(), now) + "秒后再试");
         }
 
         String code = generateCode();
         Instant expireAt = now.plus(CODE_TTL);
-        VerificationCodeRecord record = new VerificationCodeRecord(code, expireAt, now, false, UUID.randomUUID().toString());
-        codeStore.put(key, record);
+        String requestId = UUID.randomUUID().toString();
+
+        AuthVerificationCodeEntity entity = existing != null ? existing : new AuthVerificationCodeEntity();
+        if (entity.getCodeId() == null) {
+            entity.setCodeId(UUID.randomUUID().toString());
+            entity.setEmail(normalizedEmail);
+            entity.setRole(role.alias());
+            entity.setPurpose(purpose);
+            entity.setCreatedAt(now);
+        }
+        entity.setCode(code);
+        entity.setExpiresAt(expireAt);
+        entity.setConsumed(false);
+        entity.setLastSentAt(now);
+        entity.setRequestId(requestId);
+        entity.setUpdatedAt(now);
+
+        verificationCodeRepository.save(entity);
 
         log.info("Generated verification code for email={}, role={}, purpose={}, code={}",
                 normalizedEmail, role, purpose, code);
@@ -182,10 +208,10 @@ public class AuthManager {
         try {
             verificationCodeSender.sendVerificationCode(normalizedEmail, code, role, purpose, CODE_TTL);
         } catch (RuntimeException ex) {
-            codeStore.remove(key);
+            verificationCodeRepository.deleteById(entity.getCodeId());
             throw ex;
         }
-        return new VerificationResult(record.requestId(), (int) CODE_TTL.getSeconds());
+        return new VerificationResult(requestId, (int) CODE_TTL.getSeconds());
     }
 
     private AuthSession createSession(UserAccountEntity user) {
@@ -195,8 +221,8 @@ public class AuthManager {
         return new AuthSession(user.getUserId(), user.getEmail(), role, accessToken, refreshToken);
     }
 
-    private long remainingSeconds(VerificationCodeRecord record, Instant now) {
-        long elapsed = Duration.between(record.lastSentAt(), now).getSeconds();
+    private long remainingSeconds(Instant lastSentAt, Instant now) {
+        long elapsed = Duration.between(lastSentAt, now).getSeconds();
         long wait = RESEND_INTERVAL.getSeconds() - elapsed;
         return Math.max(wait, 0);
     }
@@ -225,10 +251,6 @@ public class AuthManager {
         return Integer.toString(code);
     }
 
-    private String codeKey(String email, AuthRole role, VerificationPurpose purpose) {
-        return email + "|" + role.name() + "|" + purpose.name();
-    }
-
     private UserAccountEntity requireExistingUser(String email, AuthRole role) {
         return userRepository.findByEmailAndRole(email, role.alias())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND, "该邮箱尚未注册"));
@@ -237,11 +259,4 @@ public class AuthManager {
     public record VerificationResult(String requestId, int expiresInSeconds) {}
 
     public record AuthSession(String userId, String email, AuthRole role, String accessToken, String refreshToken) {}
-
-    private record VerificationCodeRecord(String code, Instant expireAt, Instant lastSentAt, boolean consumed, String requestId)
-    {
-        VerificationCodeRecord markConsumed() {
-            return new VerificationCodeRecord(code, expireAt, lastSentAt, true, requestId);
-        }
-    }
 }
