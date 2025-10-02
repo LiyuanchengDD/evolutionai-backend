@@ -167,10 +167,11 @@
         <execution>
           <id>generate-proto-sources</id>
           <!--
-            绑定到 compile 阶段，避免在执行 `generate-sources` 和 `compile` 时重复触发，
-            从而规避 macOS 上临时目录无法清理导致的构建失败。
+            绑定到 generate-sources 阶段，这样无论执行 `generate-sources` 还是
+            `compile`，都会在真正编译 Java 代码前生成 gRPC stub，避免缺少
+            com.example.grpcdemo.proto 包导致的编译错误。
           -->
-          <phase>compile</phase>
+          <phase>generate-sources</phase>
           <goals>
             <goal>compile</goal>         <!-- 生成 protobuf Java -->
             <goal>compile-custom</goal>  <!-- 生成 gRPC stub -->
