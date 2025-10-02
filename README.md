@@ -15,9 +15,8 @@ services such as `AuthServiceImpl` and `CandidateServiceImpl`.
 ./mvnw clean compile
 ```
 
-Running `generate-sources` and `compile` in the same Maven invocation is safe. A
-macOS build failure was previously triggered by the protobuf plugin attempting to
-scan every regular dependency jar for `.proto` files, which resulted in `Proto path
-element is not a directory` errors. The build has been configured to only use the
-local proto definitions, so the above command (or any standard Maven lifecycle
-command such as `./mvnw clean package`) will now succeed on both macOS and Linux.
+可以在同一次 Maven 调用中同时执行 `generate-sources` 与 `compile`，不会产生冲突。
+此前在 macOS 上曾因 protobuf 插件尝试扫描所有依赖 JAR 内的 `.proto` 文件而导致
+`Proto path element is not a directory` 错误。现在构建流程已调整为仅使用本地 proto
+定义，因此上述命令（或任何标准 Maven 生命周期命令，例如 `./mvnw clean package`）
+在 macOS 与 Linux 环境下都能顺利通过。
