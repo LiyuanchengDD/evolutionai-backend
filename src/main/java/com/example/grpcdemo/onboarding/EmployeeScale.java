@@ -9,8 +9,7 @@ import java.util.Arrays;
  * Enumerates the selectable company size ranges used during enterprise onboarding.
  */
 public enum EmployeeScale {
-    LESS_THAN_TEN("10人以内"),
-    TEN_TO_FIFTY("10-50人"),
+    LESS_THAN_FIFTY("50人以下"),
     FIFTY_TO_TWO_HUNDRED("50-200人"),
     TWO_HUNDRED_TO_FIVE_HUNDRED("200-500人"),
     FIVE_HUNDRED_TO_ONE_THOUSAND("500-1000人"),

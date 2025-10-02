@@ -142,8 +142,9 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
   - `userId`（必填）—— 当前登录用户 ID。
   - `companyName`（必填）—— 企业全称。
   - `companyShortName`、`socialCreditCode`、`industry`、`website`、`description`（选填）。
-  - `country`、`city`、`employeeScale`（必填）—— 所在国家/城市与规模枚举，枚举值见 `EmployeeScale`。
-- **行为说明**：服务端会把本步骤数据写入会话专用的临时 List，并将 `currentStep` 推进到 2。【F:src/main/java/com/example/grpcdemo/controller/dto/EnterpriseStep1Request.java†L14-L93】【F:src/main/java/com/example/grpcdemo/onboarding/EmployeeScale.java†L6-L41】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L77-L111】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L402-L446】
+  - `country`、`city`、`employeeScale`、`annualHiringPlan`（均为必填）—— 国家与城市使用 ISO 代码（`country` 为 ISO 3166-1 alpha-2，`city` 为 ISO 3166-2），后端会校验组合合法性；企业规模枚举见 `EmployeeScale`，年度招聘计划枚举见 `AnnualHiringPlan`。
+- **行为说明**：服务端会把本步骤数据写入会话专用的临时 List，并将 `currentStep` 推进到 2。【F:src/main/java/com/example/grpcdemo/controller/dto/EnterpriseStep1Request.java†L14-L109】【F:src/main/java/com/example/grpcdemo/onboarding/EmployeeScale.java†L6-L41】【F:src/main/java/com/example/grpcdemo/onboarding/AnnualHiringPlan.java†L6-L41】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L129-L229】
+  - 国家 & 城市下拉列表可通过新增接口获取：`GET /api/enterprise/onboarding/locations/countries` 返回所有国家（响应字段 `code`=`ISO 3166-1 alpha-2`），`GET /api/enterprise/onboarding/locations/cities?country={code}` 返回对应国家的 ISO 3166-2 省/州/直辖市列表。两个接口均支持 `Accept-Language` (`zh`/`en`/`jp`) 自动本地化显示名称。【F:src/main/java/com/example/grpcdemo/controller/EnterpriseOnboardingController.java†L32-L63】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L247-L310】【F:src/main/java/com/example/grpcdemo/location/LocationCatalog.java†L13-L125】
 
 ### 3. 步骤二：HR 联系人信息
 - **Endpoint**：`POST /api/enterprise/onboarding/step2`
@@ -152,8 +153,16 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 
 ### 4. 步骤三：面试邀约模版
 - **Endpoint**：`POST /api/enterprise/onboarding/step3`
-- **Request body** (`EnterpriseStep3Request`): `userId`、`templateName`、`subject`、`body` 必填，`language` 默认 `zh-CN`。
-- **行为说明**：后台会解析正文/主题中的 `[[...]]` 变量，限制只能使用以下字段：`[[候选人姓名]]`、`[[岗位名称]]`、`[[企业全称]]`、`[[面试时间]]`、`[[面试地点]]`、`[[面试链接]]`、`[[联系人姓名]]`、`[[联系人电话]]`、`[[联系人邮箱]]`。超出范围将返回 `INVALID_TEMPLATE_VARIABLE`。保存成功后 `currentStep`=4，供验证码页面使用。【F:src/main/java/com/example/grpcdemo/controller/dto/EnterpriseStep3Request.java†L14-L67】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L148-L185】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L49-L63】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L420-L449】
+- **Request body** (`EnterpriseStep3Request`): `userId`、`templateName`、`subject`、`body` 必填，`language` 默认 `zh`，与前端的 `Accept-Language` 请求头保持一致（支持 `zh`/`en`/`jp`，若字段为空则按请求头或中文兜底）。
+- **行为说明**：后台会解析正文/主题中的 `[[...]]` 变量，并根据当前语言校验允许的占位符。支持的变量如下表，发送其他占位符会返回 `INVALID_TEMPLATE_VARIABLE`：
+
+  | 语言 (`Accept-Language`) | 允许的占位符 |
+  | ----------------------- | ------------ |
+  | `zh` | `[[候选人姓名]]`、`[[岗位名称]]`、`[[企业全称]]`、`[[面试时间]]`、`[[面试地点]]`、`[[面试链接]]`、`[[联系人姓名]]`、`[[联系人电话]]`、`[[联系人邮箱]]` |
+  | `en` | `[[Candidate Name]]`、`[[Job Title]]`、`[[Company Name]]`、`[[Interview Time]]`、`[[Interview Location]]`、`[[Interview Link]]`、`[[Contact Name]]`、`[[Contact Phone]]`、`[[Contact Email]]` |
+  | `jp` | `[[候補者名]]`、`[[職位名]]`、`[[企業名]]`、`[[面接時間]]`、`[[面接場所]]`、`[[面接リンク]]`、`[[担当者名]]`、`[[担当者電話]]`、`[[担当者メール]]` |
+
+  后端在所有 `OnboardingStateResponse` 响应中会根据 `Accept-Language` 请求头返回匹配语言的 `availableVariables` 列表，便于前端渲染按钮。保存成功后 `currentStep`=4，供验证码页面使用。【F:src/main/java/com/example/grpcdemo/controller/dto/EnterpriseStep3Request.java†L14-L67】【F:src/main/java/com/example/grpcdemo/controller/EnterpriseOnboardingController.java†L27-L55】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L62-L339】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L362-L608】
 
 ### 5. 最终校验并入库
 - **Endpoint**：`POST /api/enterprise/onboarding/verify`
