@@ -308,7 +308,7 @@ public class EnterpriseOnboardingService {
 
     public List<LocationOptionDto> listCountries(String preferredLanguage) {
         Locale locale = resolveLocale(preferredLanguage);
-        return locationCatalog.getCountries(locale).stream()
+        return locationCatalog.listCountries(locale).stream()
                 .map(option -> new LocationOptionDto(option.code(), option.name()))
                 .collect(Collectors.toList());
     }
@@ -316,7 +316,7 @@ public class EnterpriseOnboardingService {
     public List<LocationOptionDto> listCities(String countryCode, String preferredLanguage) {
         Locale locale = resolveLocale(preferredLanguage);
         String normalizedCountry = normalizeCountryCode(countryCode);
-        return locationCatalog.getCities(normalizedCountry, locale).stream()
+        return locationCatalog.listCities(normalizedCountry, locale).stream()
                 .map(option -> new LocationOptionDto(option.code(), option.name()))
                 .collect(Collectors.toList());
     }
