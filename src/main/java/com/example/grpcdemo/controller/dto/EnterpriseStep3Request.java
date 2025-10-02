@@ -24,7 +24,7 @@ public class EnterpriseStep3Request {
     private String body;
 
     @Size(max = 32, message = "语言标识长度需小于 32 个字符")
-    private String language = "zh-CN";
+    private String language = "zh";
 
     public String getUserId() {
         return userId;

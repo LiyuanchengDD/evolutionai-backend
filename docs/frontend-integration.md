@@ -152,8 +152,16 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 
 ### 4. 步骤三：面试邀约模版
 - **Endpoint**：`POST /api/enterprise/onboarding/step3`
-- **Request body** (`EnterpriseStep3Request`): `userId`、`templateName`、`subject`、`body` 必填，`language` 默认 `zh-CN`。
-- **行为说明**：后台会解析正文/主题中的 `[[...]]` 变量，限制只能使用以下字段：`[[候选人姓名]]`、`[[岗位名称]]`、`[[企业全称]]`、`[[面试时间]]`、`[[面试地点]]`、`[[面试链接]]`、`[[联系人姓名]]`、`[[联系人电话]]`、`[[联系人邮箱]]`。超出范围将返回 `INVALID_TEMPLATE_VARIABLE`。保存成功后 `currentStep`=4，供验证码页面使用。【F:src/main/java/com/example/grpcdemo/controller/dto/EnterpriseStep3Request.java†L14-L67】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L148-L185】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L49-L63】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L420-L449】
+- **Request body** (`EnterpriseStep3Request`): `userId`、`templateName`、`subject`、`body` 必填，`language` 默认 `zh`，与前端的 `Accept-Language` 请求头保持一致（支持 `zh`/`en`/`jp`，若字段为空则按请求头或中文兜底）。
+- **行为说明**：后台会解析正文/主题中的 `[[...]]` 变量，并根据当前语言校验允许的占位符。支持的变量如下表，发送其他占位符会返回 `INVALID_TEMPLATE_VARIABLE`：
+
+  | 语言 (`Accept-Language`) | 允许的占位符 |
+  | ----------------------- | ------------ |
+  | `zh` | `[[候选人姓名]]`、`[[岗位名称]]`、`[[企业全称]]`、`[[面试时间]]`、`[[面试地点]]`、`[[面试链接]]`、`[[联系人姓名]]`、`[[联系人电话]]`、`[[联系人邮箱]]` |
+  | `en` | `[[Candidate Name]]`、`[[Job Title]]`、`[[Company Name]]`、`[[Interview Time]]`、`[[Interview Location]]`、`[[Interview Link]]`、`[[Contact Name]]`、`[[Contact Phone]]`、`[[Contact Email]]` |
+  | `jp` | `[[候補者名]]`、`[[職位名]]`、`[[企業名]]`、`[[面接時間]]`、`[[面接場所]]`、`[[面接リンク]]`、`[[担当者名]]`、`[[担当者電話]]`、`[[担当者メール]]` |
+
+  后端在所有 `OnboardingStateResponse` 响应中会根据 `Accept-Language` 请求头返回匹配语言的 `availableVariables` 列表，便于前端渲染按钮。保存成功后 `currentStep`=4，供验证码页面使用。【F:src/main/java/com/example/grpcdemo/controller/dto/EnterpriseStep3Request.java†L14-L67】【F:src/main/java/com/example/grpcdemo/controller/EnterpriseOnboardingController.java†L27-L55】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L62-L339】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L362-L608】
 
 ### 5. 最终校验并入库
 - **Endpoint**：`POST /api/enterprise/onboarding/verify`

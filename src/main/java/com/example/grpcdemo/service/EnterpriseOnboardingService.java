@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -56,17 +57,47 @@ import java.util.stream.Collectors;
 @Service
 public class EnterpriseOnboardingService {
 
-    private static final List<String> AVAILABLE_TEMPLATE_VARIABLES = List.of(
-            "[[候选人姓名]]",
-            "[[岗位名称]]",
-            "[[企业全称]]",
-            "[[面试时间]]",
-            "[[面试地点]]",
-            "[[面试链接]]",
-            "[[联系人姓名]]",
-            "[[联系人电话]]",
-            "[[联系人邮箱]]"
-    );
+    private static final String DEFAULT_TEMPLATE_LANGUAGE = "zh";
+
+    private static final Map<String, List<String>> AVAILABLE_TEMPLATE_VARIABLES_BY_LANGUAGE;
+
+    static {
+        Map<String, List<String>> variables = new LinkedHashMap<>();
+        variables.put("zh", List.of(
+                "[[候选人姓名]]",
+                "[[岗位名称]]",
+                "[[企业全称]]",
+                "[[面试时间]]",
+                "[[面试地点]]",
+                "[[面试链接]]",
+                "[[联系人姓名]]",
+                "[[联系人电话]]",
+                "[[联系人邮箱]]"
+        ));
+        variables.put("en", List.of(
+                "[[Candidate Name]]",
+                "[[Job Title]]",
+                "[[Company Name]]",
+                "[[Interview Time]]",
+                "[[Interview Location]]",
+                "[[Interview Link]]",
+                "[[Contact Name]]",
+                "[[Contact Phone]]",
+                "[[Contact Email]]"
+        ));
+        variables.put("jp", List.of(
+                "[[候補者名]]",
+                "[[職位名]]",
+                "[[企業名]]",
+                "[[面接時間]]",
+                "[[面接場所]]",
+                "[[面接リンク]]",
+                "[[担当者名]]",
+                "[[担当者電話]]",
+                "[[担当者メール]]"
+        ));
+        AVAILABLE_TEMPLATE_VARIABLES_BY_LANGUAGE = Collections.unmodifiableMap(variables);
+    }
 
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\[\\[(.+?)]]");
 
@@ -113,7 +144,7 @@ public class EnterpriseOnboardingService {
         this.clock = clock;
     }
 
-    public OnboardingStateResponse saveStep1(EnterpriseStep1Request request) {
+    public OnboardingStateResponse saveStep1(EnterpriseStep1Request request, String preferredLanguage) {
         ensureNotCompleted(request.getUserId());
         Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
         synchronized (lock) {
@@ -134,11 +165,11 @@ public class EnterpriseOnboardingService {
             session.setCurrentStep(2);
             session.refreshExpiration(now.plus(SESSION_TTL));
             persistSession(session, now);
-            return buildStateFromSession(session);
+            return buildStateFromSession(session, preferredLanguage);
         }
     }
 
-    public OnboardingStateResponse saveStep2(EnterpriseStep2Request request) {
+    public OnboardingStateResponse saveStep2(EnterpriseStep2Request request, String preferredLanguage) {
         ensureNotCompleted(request.getUserId());
         Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
         synchronized (lock) {
@@ -159,11 +190,11 @@ public class EnterpriseOnboardingService {
             session.setCurrentStep(3);
             session.refreshExpiration(now.plus(SESSION_TTL));
             persistSession(session, now);
-            return buildStateFromSession(session);
+            return buildStateFromSession(session, preferredLanguage);
         }
     }
 
-    public OnboardingStateResponse saveStep3(EnterpriseStep3Request request) {
+    public OnboardingStateResponse saveStep3(EnterpriseStep3Request request, String preferredLanguage) {
         ensureNotCompleted(request.getUserId());
         Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
         synchronized (lock) {
@@ -171,12 +202,13 @@ public class EnterpriseOnboardingService {
             if (session.getStep2() == null) {
                 throw new OnboardingException(OnboardingErrorCode.MISSING_PREVIOUS_STEP);
             }
-            List<String> variables = extractVariables(request.getSubject(), request.getBody());
+            String language = determineLanguage(request.getLanguage(), preferredLanguage);
+            List<String> variables = extractVariables(request.getSubject(), request.getBody(), language);
             Step3Data data = new Step3Data(
                     request.getTemplateName(),
                     request.getSubject(),
                     request.getBody(),
-                    StringUtils.hasText(request.getLanguage()) ? request.getLanguage() : "zh-CN",
+                    language,
                     variables
             );
             Instant now = clock.instant();
@@ -184,12 +216,12 @@ public class EnterpriseOnboardingService {
             session.setCurrentStep(4);
             session.refreshExpiration(now.plus(SESSION_TTL));
             persistSession(session, now);
-            return buildStateFromSession(session);
+            return buildStateFromSession(session, preferredLanguage);
         }
     }
 
     @Transactional
-    public OnboardingStateResponse verifyAndComplete(EnterpriseVerifyRequest request) {
+    public OnboardingStateResponse verifyAndComplete(EnterpriseVerifyRequest request, String preferredLanguage) {
         ensureNotCompleted(request.getUserId());
         Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
         synchronized (lock) {
@@ -235,11 +267,17 @@ public class EnterpriseOnboardingService {
             }
             sessionLocks.remove(request.getUserId());
 
-            return buildCompletedState(request.getUserId(), companyId, step1, step2, step3, records);
+            return buildCompletedState(request.getUserId(),
+                    companyId,
+                    step1,
+                    step2,
+                    step3,
+                    records,
+                    preferredLanguage);
         }
     }
 
-    public OnboardingStateResponse getState(String userId) {
+    public OnboardingStateResponse getState(String userId, String preferredLanguage) {
         if (!StringUtils.hasText(userId)) {
             throw new OnboardingException(OnboardingErrorCode.SESSION_NOT_FOUND);
         }
@@ -252,7 +290,7 @@ public class EnterpriseOnboardingService {
             InvitationTemplateEntity template = invitationTemplateRepository
                     .findFirstByCompanyIdAndDefaultTemplateTrue(profile.getCompanyId())
                     .orElse(null);
-            return buildCompletedStateFromPersistence(userId, profile, contact, template);
+            return buildCompletedStateFromPersistence(userId, profile, contact, template, preferredLanguage);
         }
         Object lock = sessionLocks.computeIfAbsent(userId, key -> new Object());
         synchronized (lock) {
@@ -262,11 +300,11 @@ public class EnterpriseOnboardingService {
                 response.setUserId(userId);
                 response.setCurrentStep(1);
                 response.setCompleted(false);
-                response.setAvailableVariables(AVAILABLE_TEMPLATE_VARIABLES);
+                populateAvailableVariables(response, preferredLanguage, null);
                 response.setRecords(Collections.emptyList());
                 return response;
             }
-            return buildStateFromSession(session);
+            return buildStateFromSession(session, preferredLanguage);
         }
     }
 
@@ -287,7 +325,7 @@ public class EnterpriseOnboardingService {
         return session;
     }
 
-    private OnboardingStateResponse buildStateFromSession(EnterpriseOnboardingSession session) {
+    private OnboardingStateResponse buildStateFromSession(EnterpriseOnboardingSession session, String preferredLanguage) {
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(session.getUserId());
         response.setCurrentStep(session.getCurrentStep());
@@ -296,8 +334,8 @@ public class EnterpriseOnboardingService {
         response.setContactInfo(session.getStep2() != null ? toContactDto(session.getStep2()) : null);
         response.setTemplateInfo(session.getStep3() != null ? toTemplateDto(session.getStep3()) : null);
         response.setRecords(session.toRecordDtos());
-        response.setAvailableVariables(AVAILABLE_TEMPLATE_VARIABLES);
-        return response;
+        Step3Data step3 = session.getStep3();
+        return populateAvailableVariables(response, preferredLanguage, step3 != null ? step3.language : null);
     }
 
     private OnboardingStateResponse buildCompletedState(String userId,
@@ -305,7 +343,8 @@ public class EnterpriseOnboardingService {
                                                         Step1Data step1,
                                                         Step2Data step2,
                                                         Step3Data step3,
-                                                        List<OnboardingStepRecordDto> records) {
+                                                        List<OnboardingStepRecordDto> records,
+                                                        String preferredLanguage) {
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(userId);
         response.setCompanyId(companyId);
@@ -315,14 +354,14 @@ public class EnterpriseOnboardingService {
         response.setContactInfo(toContactDto(step2));
         response.setTemplateInfo(toTemplateDto(step3));
         response.setRecords(records);
-        response.setAvailableVariables(AVAILABLE_TEMPLATE_VARIABLES);
-        return response;
+        return populateAvailableVariables(response, preferredLanguage, step3 != null ? step3.language : null);
     }
 
     private OnboardingStateResponse buildCompletedStateFromPersistence(String userId,
                                                                        CompanyProfileEntity profile,
                                                                        CompanyContactEntity contact,
-                                                                       InvitationTemplateEntity template) {
+                                                                       InvitationTemplateEntity template,
+                                                                       String preferredLanguage) {
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(userId);
         response.setCompanyId(profile.getCompanyId());
@@ -336,8 +375,64 @@ public class EnterpriseOnboardingService {
             response.setTemplateInfo(toTemplateDto(template));
         }
         response.setRecords(Collections.emptyList());
-        response.setAvailableVariables(AVAILABLE_TEMPLATE_VARIABLES);
+        return populateAvailableVariables(response,
+                preferredLanguage,
+                template != null ? template.getLanguage() : null);
+    }
+
+    private OnboardingStateResponse populateAvailableVariables(OnboardingStateResponse response,
+                                                               String preferredLanguage,
+                                                               String templateLanguage) {
+        List<String> available = resolveAvailableVariables(preferredLanguage, templateLanguage);
+        response.setAvailableVariables(new ArrayList<>(available));
         return response;
+    }
+
+    private List<String> resolveAvailableVariables(String preferredLanguage, String templateLanguage) {
+        String language = determineLanguage(preferredLanguage, templateLanguage);
+        List<String> variables = AVAILABLE_TEMPLATE_VARIABLES_BY_LANGUAGE.get(language);
+        if (variables == null) {
+            variables = AVAILABLE_TEMPLATE_VARIABLES_BY_LANGUAGE.get(DEFAULT_TEMPLATE_LANGUAGE);
+        }
+        return variables;
+    }
+
+    private String determineLanguage(String primaryCandidate, String secondaryCandidate) {
+        String normalizedPrimary = normalizeLanguage(primaryCandidate);
+        if (normalizedPrimary != null) {
+            return normalizedPrimary;
+        }
+        String normalizedSecondary = normalizeLanguage(secondaryCandidate);
+        if (normalizedSecondary != null) {
+            return normalizedSecondary;
+        }
+        return DEFAULT_TEMPLATE_LANGUAGE;
+    }
+
+    private String normalizeLanguage(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String[] segments = raw.toLowerCase(Locale.ROOT).split(",");
+        for (String segment : segments) {
+            String candidate = segment.trim();
+            int semicolon = candidate.indexOf(';');
+            if (semicolon >= 0) {
+                candidate = candidate.substring(0, semicolon).trim();
+            }
+            int dash = candidate.indexOf('-');
+            if (dash >= 0) {
+                candidate = candidate.substring(0, dash);
+            }
+            int underscore = candidate.indexOf('_');
+            if (underscore >= 0) {
+                candidate = candidate.substring(0, underscore);
+            }
+            if (AVAILABLE_TEMPLATE_VARIABLES_BY_LANGUAGE.containsKey(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private EnterpriseOnboardingSession loadSession(String userId, boolean createIfMissing) {
@@ -537,7 +632,7 @@ public class EnterpriseOnboardingService {
         dto.setSubject(data.subject);
         dto.setBody(data.body);
         dto.setLanguage(data.language);
-        dto.setVariables(data.variables);
+        dto.setVariables(new ArrayList<>(data.variables));
         return dto;
     }
 
@@ -547,11 +642,11 @@ public class EnterpriseOnboardingService {
         dto.setSubject(entity.getSubject());
         dto.setBody(entity.getBody());
         dto.setLanguage(entity.getLanguage());
-        dto.setVariables(extractVariables(entity.getSubject(), entity.getBody()));
+        dto.setVariables(extractVariables(entity.getSubject(), entity.getBody(), entity.getLanguage()));
         return dto;
     }
 
-    private List<String> extractVariables(String subject, String body) {
+    private List<String> extractVariables(String subject, String body, String language) {
         Set<String> variables = new LinkedHashSet<>();
         Matcher subjectMatcher = PLACEHOLDER_PATTERN.matcher(subject != null ? subject : "");
         while (subjectMatcher.find()) {
@@ -563,8 +658,10 @@ public class EnterpriseOnboardingService {
             String variable = "[[" + bodyMatcher.group(1) + "]]";
             variables.add(variable);
         }
+        String resolvedLanguage = determineLanguage(language, null);
+        List<String> allowedVariables = AVAILABLE_TEMPLATE_VARIABLES_BY_LANGUAGE.get(resolvedLanguage);
         for (String variable : variables) {
-            if (!AVAILABLE_TEMPLATE_VARIABLES.contains(variable)) {
+            if (!allowedVariables.contains(variable)) {
                 throw new OnboardingException(OnboardingErrorCode.INVALID_TEMPLATE_VARIABLE,
                         "变量 " + variable + " 未在允许列表中");
             }
