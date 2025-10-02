@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS public.company_profiles (
     city_code            varchar(16)  NOT NULL,
     website              varchar(255),
     description          varchar(1000),
+    detailed_address     varchar(255),
     status               varchar(32)  NOT NULL,
     created_at           timestamptz  NOT NULL DEFAULT now(),
     updated_at           timestamptz  NOT NULL DEFAULT now()
@@ -120,6 +121,24 @@ DROP TRIGGER IF EXISTS set_company_contacts_updated_at
     ON public.company_contacts;
 CREATE TRIGGER set_company_contacts_updated_at
     BEFORE UPDATE ON public.company_contacts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TABLE IF NOT EXISTS public.company_recruiting_positions (
+    position_id    uuid PRIMARY KEY,
+    company_id     uuid        NOT NULL REFERENCES public.company_profiles (company_id) ON DELETE CASCADE,
+    position_name  varchar(255) NOT NULL,
+    created_at     timestamptz  NOT NULL DEFAULT now(),
+    updated_at     timestamptz  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS company_recruiting_positions_company_id_idx
+    ON public.company_recruiting_positions (company_id);
+
+DROP TRIGGER IF EXISTS set_company_recruiting_positions_updated_at
+    ON public.company_recruiting_positions;
+CREATE TRIGGER set_company_recruiting_positions_updated_at
+    BEFORE UPDATE ON public.company_recruiting_positions
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 

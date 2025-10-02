@@ -3,6 +3,8 @@ package com.example.grpcdemo.controller.dto;
 import com.example.grpcdemo.onboarding.AnnualHiringPlan;
 import com.example.grpcdemo.onboarding.EmployeeScale;
 
+import java.util.List;
+
 /**
  * Company information snapshot returned during onboarding progress queries.
  */
@@ -20,6 +22,8 @@ public class EnterpriseCompanyInfoDto {
     private String industry;
     private String website;
     private String description;
+    private String detailedAddress;
+    private List<String> recruitingPositions;
 
     public String getCompanyName() {
         return companyName;
@@ -115,5 +119,21 @@ public class EnterpriseCompanyInfoDto {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getDetailedAddress() {
+        return detailedAddress;
+    }
+
+    public void setDetailedAddress(String detailedAddress) {
+        this.detailedAddress = detailedAddress;
+    }
+
+    public List<String> getRecruitingPositions() {
+        return recruitingPositions;
+    }
+
+    public void setRecruitingPositions(List<String> recruitingPositions) {
+        this.recruitingPositions = recruitingPositions;
     }
 }
