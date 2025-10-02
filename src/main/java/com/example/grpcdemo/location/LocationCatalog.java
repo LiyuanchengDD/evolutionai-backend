@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,7 +31,7 @@ public class LocationCatalog {
     private static final Set<String> ISO_COUNTRY_CODES = Arrays.stream(CountryCode.values())
             .map(LocationCatalog::alpha2Code)
             .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableSet());
+            .collect(Collectors.collectingAndThen(Collectors.toCollection(LinkedHashSet::new), Collections::unmodifiableSet));
 
     private static final Method SUBDIVISION_GET_NAME_METHOD = findSubdivisionMethod("getName");
     private static final Method SUBDIVISION_GET_LOCAL_NAME_METHOD = findSubdivisionMethod("getLocalName");
@@ -64,7 +65,7 @@ public class LocationCatalog {
         return subdivisions.stream()
                 .map(subdivision -> new LocationOption(subdivision.code(), subdivision.displayName(displayLocale)))
                 .sorted(Comparator.comparing(LocationOption::name, String.CASE_INSENSITIVE_ORDER))
-                .collect(Collectors.toUnmodifiableList());
+                .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
     }
 
     public Optional<LocationOption> findCountry(String countryCode, Locale locale) {
@@ -97,7 +98,47 @@ public class LocationCatalog {
                 .map(subdivision -> new LocationOption(subdivision.code(), subdivision.displayName(displayLocale)));
     }
 
-    public record LocationOption(String code, String name) {
+    public static final class LocationOption {
+        private final String code;
+        private final String name;
+
+        public LocationOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+
+        public String code() {
+            return code;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof LocationOption)) {
+                return false;
+            }
+            LocationOption that = (LocationOption) o;
+            return Objects.equals(code, that.code) && Objects.equals(name, that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(code, name);
+        }
+
+        @Override
+        public String toString() {
+            return "LocationOption{" +
+                    "code='" + code + '\'' +
+                    ", name='" + name + '\'' +
+                    '}';
+        }
     }
 
     private static Map<String, List<LocalizedSubdivision>> createSubdivisionCatalog() {
@@ -160,8 +201,32 @@ public class LocationCatalog {
         return new LocalizedSubdivision(countryAlpha2, isoCode, englishName, localName);
     }
 
-    private record LocalizedSubdivision(String countryCode, String code, String englishName, String localName) {
-        String displayName(Locale locale) {
+    private static final class LocalizedSubdivision {
+        private final String countryCode;
+        private final String code;
+        private final String englishName;
+        private final String localName;
+
+        private LocalizedSubdivision(String countryCode, String code, String englishName, String localName) {
+            this.countryCode = countryCode;
+            this.code = code;
+            this.englishName = englishName;
+            this.localName = localName;
+        }
+
+        private String countryCode() {
+            return countryCode;
+        }
+
+        private String code() {
+            return code;
+        }
+
+        private String englishName() {
+            return englishName;
+        }
+
+        private String displayName(Locale locale) {
             if (locale != null && "zh".equalsIgnoreCase(locale.getLanguage()) && localName != null) {
                 return localName;
             }
