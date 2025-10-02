@@ -1,7 +1,10 @@
 package com.example.grpcdemo.location;
 
+import com.neovisionaries.i18n.CountryCode;
+import com.neovisionaries.i18n.SubdivisionCode;
 import org.springframework.stereotype.Component;
 
+import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -10,8 +13,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -20,24 +24,18 @@ import java.util.stream.Collectors;
 @Component
 public class LocationCatalog {
 
-    private static final Set<String> ISO_COUNTRY_CODES = Arrays.stream(Locale.getISOCountries())
-            .map(code -> code.toUpperCase(Locale.ROOT))
-            .collect(Collectors.toUnmodifiableSet());
-
+    private static final Map<String, CountryCode> OFFICIAL_COUNTRIES = buildOfficialCountryMap();
+    private static final List<String> SORTED_COUNTRY_CODES = buildSortedCountryCodes();
     private static final Map<String, List<LocalizedSubdivision>> SUBDIVISION_CATALOG = createSubdivisionCatalog();
 
     public List<LocationOption> getCountries(Locale locale) {
         Locale displayLocale = locale != null ? locale : Locale.SIMPLIFIED_CHINESE;
         List<LocationOption> options = new ArrayList<>();
-        for (String code : ISO_COUNTRY_CODES) {
+        for (String code : SORTED_COUNTRY_CODES) {
             Locale countryLocale = new Locale("", code);
-            String name = countryLocale.getDisplayCountry(displayLocale);
-            if (name == null || name.isBlank()) {
-                continue;
-            }
-            options.add(new LocationOption(code, name));
+            String displayName = normalizeCountryName(code, countryLocale.getDisplayCountry(displayLocale));
+            options.add(new LocationOption(code, displayName));
         }
-        options.sort(Comparator.comparing(LocationOption::name, String.CASE_INSENSITIVE_ORDER));
         return Collections.unmodifiableList(options);
     }
 
@@ -62,12 +60,13 @@ public class LocationCatalog {
             return Optional.empty();
         }
         String normalizedCountry = countryCode.toUpperCase(Locale.ROOT);
-        if (!ISO_COUNTRY_CODES.contains(normalizedCountry)) {
+        if (!OFFICIAL_COUNTRIES.containsKey(normalizedCountry)) {
             return Optional.empty();
         }
         Locale displayLocale = locale != null ? locale : Locale.SIMPLIFIED_CHINESE;
         Locale countryLocale = new Locale("", normalizedCountry);
-        return Optional.of(new LocationOption(normalizedCountry, countryLocale.getDisplayCountry(displayLocale)));
+        String displayName = normalizeCountryName(normalizedCountry, countryLocale.getDisplayCountry(displayLocale));
+        return Optional.of(new LocationOption(normalizedCountry, displayName));
     }
 
     public Optional<LocationOption> findCity(String countryCode, String subdivisionCode, Locale locale) {
@@ -91,47 +90,120 @@ public class LocationCatalog {
     }
 
     private static Map<String, List<LocalizedSubdivision>> createSubdivisionCatalog() {
-        Map<String, List<LocalizedSubdivision>> catalog = new LinkedHashMap<>();
-        catalog.put("CN", List.of(
-                new LocalizedSubdivision("CN-AH", "Anhui", "安徽省"),
-                new LocalizedSubdivision("CN-BJ", "Beijing", "北京市"),
-                new LocalizedSubdivision("CN-GD", "Guangdong", "广东省"),
-                new LocalizedSubdivision("CN-SH", "Shanghai", "上海市"),
-                new LocalizedSubdivision("CN-SC", "Sichuan", "四川省"),
-                new LocalizedSubdivision("CN-ZJ", "Zhejiang", "浙江省")
-        ));
-        catalog.put("US", List.of(
-                new LocalizedSubdivision("US-CA", "California", "加利福尼亚州"),
-                new LocalizedSubdivision("US-NY", "New York", "纽约州"),
-                new LocalizedSubdivision("US-TX", "Texas", "得克萨斯州"),
-                new LocalizedSubdivision("US-WA", "Washington", "华盛顿州"),
-                new LocalizedSubdivision("US-FL", "Florida", "佛罗里达州")
-        ));
-        catalog.put("CA", List.of(
-                new LocalizedSubdivision("CA-BC", "British Columbia", "不列颠哥伦比亚省"),
-                new LocalizedSubdivision("CA-ON", "Ontario", "安大略省"),
-                new LocalizedSubdivision("CA-QC", "Quebec", "魁北克省"),
-                new LocalizedSubdivision("CA-AB", "Alberta", "艾伯塔省")
-        ));
-        catalog.put("JP", List.of(
-                new LocalizedSubdivision("JP-13", "Tokyo", "东京都"),
-                new LocalizedSubdivision("JP-27", "Osaka", "大阪府"),
-                new LocalizedSubdivision("JP-23", "Aichi", "爱知县"),
-                new LocalizedSubdivision("JP-01", "Hokkaido", "北海道")
-        ));
-        catalog.put("DE", List.of(
-                new LocalizedSubdivision("DE-BE", "Berlin", "柏林州"),
-                new LocalizedSubdivision("DE-BY", "Bavaria", "巴伐利亚州"),
-                new LocalizedSubdivision("DE-NW", "North Rhine-Westphalia", "北莱茵-威斯特法伦州"),
-                new LocalizedSubdivision("DE-HE", "Hesse", "黑森州")
-        ));
+        Map<String, List<LocalizedSubdivision>> catalog = Arrays.stream(SubdivisionCode.values())
+                .map(LocationCatalog::toLocalizedSubdivision)
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(LocalizedSubdivision::countryCode,
+                        LinkedHashMap::new,
+                        Collectors.collectingAndThen(Collectors.toCollection(ArrayList::new), subdivisions -> {
+                            subdivisions.sort(Comparator.comparing(LocalizedSubdivision::englishName, buildEnglishCollator())
+                                    .thenComparing(LocalizedSubdivision::code));
+                            return Collections.unmodifiableList(subdivisions);
+                        })));
         return Collections.unmodifiableMap(catalog);
     }
 
-    private record LocalizedSubdivision(String code, String englishName, String simplifiedChineseName) {
+    private static Map<String, CountryCode> buildOfficialCountryMap() {
+        Map<String, CountryCode> countries = Arrays.stream(CountryCode.values())
+                .filter(countryCode -> countryCode != null && countryCode.isOfficiallyAssigned())
+                .map(countryCode -> Map.entry(normalizeAlpha2(countryCode.getAlpha2()), countryCode))
+                .filter(entry -> entry.getKey() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> existing, TreeMap::new));
+        return Collections.unmodifiableMap(countries);
+    }
+
+    private static List<String> buildSortedCountryCodes() {
+        Collator englishCollator = buildEnglishCollator();
+        return OFFICIAL_COUNTRIES.values().stream()
+                .map(countryCode -> normalizeAlpha2(countryCode.getAlpha2()))
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted((left, right) -> {
+                    String leftName = normalizeCountryName(left, new Locale("", left).getDisplayCountry(Locale.ENGLISH));
+                    String rightName = normalizeCountryName(right, new Locale("", right).getDisplayCountry(Locale.ENGLISH));
+                    int comparison = englishCollator.compare(leftName, rightName);
+                    if (comparison == 0) {
+                        comparison = left.compareTo(right);
+                    }
+                    return comparison;
+                })
+                .collect(Collectors.toUnmodifiableList());
+    }
+
+    private static LocalizedSubdivision toLocalizedSubdivision(SubdivisionCode subdivisionCode) {
+        if (subdivisionCode == null) {
+            return null;
+        }
+        CountryCode countryCode = subdivisionCode.getCountry();
+        String countryAlpha2 = countryCode != null ? normalizeAlpha2(countryCode.getAlpha2()) : null;
+        if (countryAlpha2 == null || !OFFICIAL_COUNTRIES.containsKey(countryAlpha2)) {
+            return null;
+        }
+        String code = subdivisionCode.getCode();
+        if (code == null || code.isBlank()) {
+            return null;
+        }
+        String normalizedCode = countryAlpha2 + "-" + code.toUpperCase(Locale.ROOT);
+        String englishName = safeSubdivisionName(subdivisionCode.getName(), normalizedCode);
+        String localName = normalize(subdivisionCode.getLocalName());
+        return new LocalizedSubdivision(countryAlpha2, normalizedCode, englishName, localName);
+    }
+
+    private static String normalizeCountryName(String alpha2, String candidate) {
+        if (candidate != null && !candidate.isBlank()) {
+            return candidate;
+        }
+        CountryCode countryCode = OFFICIAL_COUNTRIES.get(alpha2);
+        if (countryCode != null) {
+            String name = countryCode.getName();
+            if (name != null && !name.isBlank()) {
+                return name;
+            }
+        }
+        return alpha2;
+    }
+
+    private static String normalizeAlpha2(String alpha2) {
+        if (alpha2 == null || alpha2.length() != 2) {
+            return null;
+        }
+        String normalized = alpha2.toUpperCase(Locale.ROOT);
+        for (int i = 0; i < normalized.length(); i++) {
+            if (!Character.isLetter(normalized.charAt(i))) {
+                return null;
+            }
+        }
+        return normalized;
+    }
+
+    private static String safeSubdivisionName(String candidate, String fallback) {
+        if (candidate != null) {
+            String trimmed = candidate.trim();
+            if (!trimmed.isEmpty()) {
+                return trimmed;
+            }
+        }
+        return fallback;
+    }
+
+    private static String normalize(String candidate) {
+        if (candidate == null) {
+            return null;
+        }
+        String trimmed = candidate.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static Collator buildEnglishCollator() {
+        Collator collator = Collator.getInstance(Locale.ENGLISH);
+        collator.setStrength(Collator.PRIMARY);
+        return collator;
+    }
+
+    private record LocalizedSubdivision(String countryCode, String code, String englishName, String localName) {
         String displayName(Locale locale) {
-            if (locale != null && "zh".equalsIgnoreCase(locale.getLanguage()) && simplifiedChineseName != null) {
-                return simplifiedChineseName;
+            if (locale != null && "zh".equalsIgnoreCase(locale.getLanguage()) && localName != null) {
+                return localName;
             }
             return englishName;
         }
