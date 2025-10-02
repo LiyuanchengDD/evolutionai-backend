@@ -7,6 +7,7 @@ import com.example.grpcdemo.controller.dto.EnterpriseStep2Request;
 import com.example.grpcdemo.controller.dto.EnterpriseStep3Request;
 import com.example.grpcdemo.controller.dto.EnterpriseTemplateDto;
 import com.example.grpcdemo.controller.dto.EnterpriseVerifyRequest;
+import com.example.grpcdemo.controller.dto.LocationOptionDto;
 import com.example.grpcdemo.controller.dto.OnboardingStateResponse;
 import com.example.grpcdemo.controller.dto.OnboardingStepRecordDto;
 import com.example.grpcdemo.entity.CompanyContactEntity;
@@ -14,6 +15,9 @@ import com.example.grpcdemo.entity.CompanyProfileEntity;
 import com.example.grpcdemo.entity.EnterpriseOnboardingSessionEntity;
 import com.example.grpcdemo.entity.InvitationTemplateEntity;
 import com.example.grpcdemo.entity.VerificationTokenEntity;
+import com.example.grpcdemo.location.LocationCatalog;
+import com.example.grpcdemo.location.LocationCatalog.LocationOption;
+import com.example.grpcdemo.onboarding.AnnualHiringPlan;
 import com.example.grpcdemo.onboarding.CompanyStatus;
 import com.example.grpcdemo.onboarding.EmployeeScale;
 import com.example.grpcdemo.onboarding.EnterpriseVerificationPurpose;
@@ -110,6 +114,7 @@ public class EnterpriseOnboardingService {
     private final InvitationTemplateRepository invitationTemplateRepository;
     private final VerificationTokenRepository verificationTokenRepository;
     private final EnterpriseOnboardingSessionRepository sessionRepository;
+    private final LocationCatalog locationCatalog;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -118,13 +123,15 @@ public class EnterpriseOnboardingService {
                                        InvitationTemplateRepository invitationTemplateRepository,
                                        VerificationTokenRepository verificationTokenRepository,
                                        EnterpriseOnboardingSessionRepository sessionRepository,
-                                       ObjectMapper objectMapper) {
+                                       ObjectMapper objectMapper,
+                                       LocationCatalog locationCatalog) {
         this(companyProfileRepository,
                 companyContactRepository,
                 invitationTemplateRepository,
                 verificationTokenRepository,
                 sessionRepository,
                 objectMapper,
+                locationCatalog,
                 Clock.systemUTC());
     }
 
@@ -134,28 +141,50 @@ public class EnterpriseOnboardingService {
                                 VerificationTokenRepository verificationTokenRepository,
                                 EnterpriseOnboardingSessionRepository sessionRepository,
                                 ObjectMapper objectMapper,
+                                LocationCatalog locationCatalog,
                                 Clock clock) {
         this.companyProfileRepository = companyProfileRepository;
         this.companyContactRepository = companyContactRepository;
         this.invitationTemplateRepository = invitationTemplateRepository;
         this.verificationTokenRepository = verificationTokenRepository;
         this.sessionRepository = sessionRepository;
+        this.locationCatalog = locationCatalog;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
 
     public OnboardingStateResponse saveStep1(EnterpriseStep1Request request, String preferredLanguage) {
         ensureNotCompleted(request.getUserId());
+        Locale locale = resolveLocale(preferredLanguage);
         Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
         synchronized (lock) {
             EnterpriseOnboardingSession session = loadSession(request.getUserId(), true);
+            String countryCode = normalizeCountryCode(request.getCountry());
+            String cityCode = normalizeCityCode(request.getCity());
+            if (!StringUtils.hasText(countryCode)) {
+                throw new OnboardingException(OnboardingErrorCode.INVALID_LOCATION, "不支持的国家编码");
+            }
+            if (!StringUtils.hasText(cityCode)) {
+                throw new OnboardingException(OnboardingErrorCode.INVALID_LOCATION, "不支持的城市编码");
+            }
+            LocationOption country = locationCatalog.findCountry(countryCode, locale)
+                    .orElseThrow(() -> new OnboardingException(OnboardingErrorCode.INVALID_LOCATION, "不支持的国家编码"));
+            LocationOption city = locationCatalog.findCity(countryCode, cityCode, locale)
+                    .orElseThrow(() -> new OnboardingException(OnboardingErrorCode.INVALID_LOCATION, "不支持的城市编码"));
+            LocationOption persistedCountry = locationCatalog.findCountry(countryCode, Locale.SIMPLIFIED_CHINESE)
+                    .orElse(country);
+            LocationOption persistedCity = locationCatalog.findCity(countryCode, cityCode, Locale.SIMPLIFIED_CHINESE)
+                    .orElse(city);
             Step1Data data = new Step1Data(
                     request.getCompanyName(),
                     request.getCompanyShortName(),
                     request.getSocialCreditCode(),
-                    request.getCountry(),
-                    request.getCity(),
+                    country.code(),
+                    persistedCountry.name(),
+                    city.code(),
+                    persistedCity.name(),
                     request.getEmployeeScale(),
+                    request.getAnnualHiringPlan(),
                     request.getIndustry(),
                     request.getWebsite(),
                     request.getDescription()
@@ -277,6 +306,21 @@ public class EnterpriseOnboardingService {
         }
     }
 
+    public List<LocationOptionDto> listCountries(String preferredLanguage) {
+        Locale locale = resolveLocale(preferredLanguage);
+        return locationCatalog.getCountries(locale).stream()
+                .map(option -> new LocationOptionDto(option.code(), option.name()))
+                .collect(Collectors.toList());
+    }
+
+    public List<LocationOptionDto> listCities(String countryCode, String preferredLanguage) {
+        Locale locale = resolveLocale(preferredLanguage);
+        String normalizedCountry = normalizeCountryCode(countryCode);
+        return locationCatalog.getCities(normalizedCountry, locale).stream()
+                .map(option -> new LocationOptionDto(option.code(), option.name()))
+                .collect(Collectors.toList());
+    }
+
     public OnboardingStateResponse getState(String userId, String preferredLanguage) {
         if (!StringUtils.hasText(userId)) {
             throw new OnboardingException(OnboardingErrorCode.SESSION_NOT_FOUND);
@@ -326,14 +370,19 @@ public class EnterpriseOnboardingService {
     }
 
     private OnboardingStateResponse buildStateFromSession(EnterpriseOnboardingSession session, String preferredLanguage) {
+        Locale locale = resolveLocale(preferredLanguage);
+
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(session.getUserId());
         response.setCurrentStep(session.getCurrentStep());
         response.setCompleted(false);
-        response.setCompanyInfo(session.getStep1() != null ? toCompanyDto(session.getStep1()) : null);
+        response.setCompanyInfo(session.getStep1() != null ? toCompanyDto(session.getStep1(), locale) : null);
         response.setContactInfo(session.getStep2() != null ? toContactDto(session.getStep2()) : null);
         response.setTemplateInfo(session.getStep3() != null ? toTemplateDto(session.getStep3()) : null);
+
+        response.setRecords(localizeRecords(session.toRecordDtos(), locale));
         response.setRecords(session.toRecordDtos());
+      
         Step3Data step3 = session.getStep3();
         return populateAvailableVariables(response, preferredLanguage, step3 != null ? step3.language : null);
     }
@@ -345,15 +394,20 @@ public class EnterpriseOnboardingService {
                                                         Step3Data step3,
                                                         List<OnboardingStepRecordDto> records,
                                                         String preferredLanguage) {
+        Locale locale = resolveLocale(preferredLanguage);
+
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(userId);
         response.setCompanyId(companyId);
         response.setCurrentStep(4);
         response.setCompleted(true);
-        response.setCompanyInfo(toCompanyDto(step1));
+        response.setCompanyInfo(toCompanyDto(step1, locale));
         response.setContactInfo(toContactDto(step2));
         response.setTemplateInfo(toTemplateDto(step3));
+
+        response.setRecords(localizeRecords(records, locale));
         response.setRecords(records);
+
         return populateAvailableVariables(response, preferredLanguage, step3 != null ? step3.language : null);
     }
 
@@ -362,12 +416,14 @@ public class EnterpriseOnboardingService {
                                                                        CompanyContactEntity contact,
                                                                        InvitationTemplateEntity template,
                                                                        String preferredLanguage) {
+
+        Locale locale = resolveLocale(preferredLanguage);
         OnboardingStateResponse response = new OnboardingStateResponse();
         response.setUserId(userId);
         response.setCompanyId(profile.getCompanyId());
         response.setCurrentStep(4);
         response.setCompleted(true);
-        response.setCompanyInfo(toCompanyDto(profile));
+        response.setCompanyInfo(toCompanyDto(profile, locale));
         if (contact != null) {
             response.setContactInfo(toContactDto(contact));
         }
@@ -388,6 +444,36 @@ public class EnterpriseOnboardingService {
         return response;
     }
 
+    private List<OnboardingStepRecordDto> localizeRecords(List<OnboardingStepRecordDto> records, Locale locale) {
+        if (records == null || records.isEmpty()) {
+            return records == null ? Collections.emptyList() : records;
+        }
+        List<OnboardingStepRecordDto> localized = new ArrayList<>(records.size());
+        for (OnboardingStepRecordDto record : records) {
+            if (record == null) {
+                continue;
+            }
+            Map<String, Object> payload = record.getPayload();
+            if (record.getStep() == 1 && payload != null) {
+                Map<String, Object> enriched = new LinkedHashMap<>(payload);
+                String countryCode = payload.get("country") instanceof String ? (String) payload.get("country") : null;
+                if (StringUtils.hasText(countryCode)) {
+                    locationCatalog.findCountry(countryCode, locale)
+                            .ifPresent(option -> enriched.put("countryDisplayName", option.name()));
+                }
+                String cityCode = payload.get("city") instanceof String ? (String) payload.get("city") : null;
+                if (StringUtils.hasText(countryCode) && StringUtils.hasText(cityCode)) {
+                    locationCatalog.findCity(countryCode, cityCode, locale)
+                            .ifPresent(option -> enriched.put("cityDisplayName", option.name()));
+                }
+                localized.add(new OnboardingStepRecordDto(record.getStep(), record.getSavedAt(), enriched));
+            } else {
+                localized.add(new OnboardingStepRecordDto(record.getStep(), record.getSavedAt(), payload));
+            }
+        }
+        return localized;
+    }
+
     private List<String> resolveAvailableVariables(String preferredLanguage, String templateLanguage) {
         String language = determineLanguage(preferredLanguage, templateLanguage);
         List<String> variables = AVAILABLE_TEMPLATE_VARIABLES_BY_LANGUAGE.get(language);
@@ -395,6 +481,16 @@ public class EnterpriseOnboardingService {
             variables = AVAILABLE_TEMPLATE_VARIABLES_BY_LANGUAGE.get(DEFAULT_TEMPLATE_LANGUAGE);
         }
         return variables;
+    }
+
+
+    private Locale resolveLocale(String preferredLanguage) {
+        String language = determineLanguage(preferredLanguage, null);
+        return switch (language) {
+            case "en" -> Locale.ENGLISH;
+            case "jp" -> Locale.JAPANESE;
+            default -> Locale.SIMPLIFIED_CHINESE;
+        };
     }
 
     private String determineLanguage(String primaryCandidate, String secondaryCandidate) {
@@ -433,6 +529,20 @@ public class EnterpriseOnboardingService {
             }
         }
         return null;
+    }
+
+    private String normalizeCountryCode(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        return raw.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeCityCode(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        return raw.trim().toUpperCase(Locale.ROOT);
     }
 
     private EnterpriseOnboardingSession loadSession(String userId, boolean createIfMissing) {
@@ -534,9 +644,10 @@ public class EnterpriseOnboardingService {
         profile.setCompanyName(data.companyName);
         profile.setCompanyShortName(data.companyShortName);
         profile.setSocialCreditCode(data.socialCreditCode);
-        profile.setCountry(data.country);
-        profile.setCity(data.city);
+        profile.setCountryCode(data.countryCode);
+        profile.setCityCode(data.cityCode);
         profile.setEmployeeScale(data.employeeScale);
+        profile.setAnnualHiringPlan(data.annualHiringPlan);
         profile.setIndustry(data.industry);
         profile.setWebsite(data.website);
         profile.setDescription(data.description);
@@ -576,31 +687,56 @@ public class EnterpriseOnboardingService {
         return template;
     }
 
-    private EnterpriseCompanyInfoDto toCompanyDto(Step1Data data) {
+    private EnterpriseCompanyInfoDto toCompanyDto(Step1Data data, Locale locale) {
+        if (data == null) {
+            return null;
+        }
         EnterpriseCompanyInfoDto dto = new EnterpriseCompanyInfoDto();
         dto.setCompanyName(data.companyName);
         dto.setCompanyShortName(data.companyShortName);
         dto.setSocialCreditCode(data.socialCreditCode);
-        dto.setCountry(data.country);
-        dto.setCity(data.city);
+        dto.setCountry(data.countryCode);
+        dto.setCity(data.cityCode);
         dto.setEmployeeScale(data.employeeScale);
+        dto.setAnnualHiringPlan(data.annualHiringPlan);
         dto.setIndustry(data.industry);
         dto.setWebsite(data.website);
         dto.setDescription(data.description);
+        locationCatalog.findCountry(data.countryCode, locale)
+                .ifPresent(option -> dto.setCountryDisplayName(option.name()));
+        if (!StringUtils.hasText(dto.getCountryDisplayName())) {
+            dto.setCountryDisplayName(data.countryDisplayName);
+        }
+        locationCatalog.findCity(data.countryCode, data.cityCode, locale)
+                .ifPresent(option -> dto.setCityDisplayName(option.name()));
+        if (!StringUtils.hasText(dto.getCityDisplayName())) {
+            dto.setCityDisplayName(data.cityDisplayName);
+        }
         return dto;
     }
 
-    private EnterpriseCompanyInfoDto toCompanyDto(CompanyProfileEntity entity) {
+    private EnterpriseCompanyInfoDto toCompanyDto(CompanyProfileEntity entity, Locale locale) {
         EnterpriseCompanyInfoDto dto = new EnterpriseCompanyInfoDto();
         dto.setCompanyName(entity.getCompanyName());
         dto.setCompanyShortName(entity.getCompanyShortName());
         dto.setSocialCreditCode(entity.getSocialCreditCode());
-        dto.setCountry(entity.getCountry());
-        dto.setCity(entity.getCity());
+        dto.setCountry(entity.getCountryCode());
+        dto.setCity(entity.getCityCode());
         dto.setEmployeeScale(entity.getEmployeeScale());
+        dto.setAnnualHiringPlan(entity.getAnnualHiringPlan());
         dto.setIndustry(entity.getIndustry());
         dto.setWebsite(entity.getWebsite());
         dto.setDescription(entity.getDescription());
+        locationCatalog.findCountry(entity.getCountryCode(), locale)
+                .ifPresent(option -> dto.setCountryDisplayName(option.name()));
+        locationCatalog.findCity(entity.getCountryCode(), entity.getCityCode(), locale)
+                .ifPresent(option -> dto.setCityDisplayName(option.name()));
+        if (!StringUtils.hasText(dto.getCountryDisplayName())) {
+            dto.setCountryDisplayName(entity.getCountryCode());
+        }
+        if (!StringUtils.hasText(dto.getCityDisplayName())) {
+            dto.setCityDisplayName(entity.getCityCode());
+        }
         return dto;
     }
 
@@ -784,9 +920,12 @@ public class EnterpriseOnboardingService {
     private record Step1Data(String companyName,
                              String companyShortName,
                              String socialCreditCode,
-                             String country,
-                             String city,
+                             String countryCode,
+                             String countryDisplayName,
+                             String cityCode,
+                             String cityDisplayName,
                              EmployeeScale employeeScale,
+                             AnnualHiringPlan annualHiringPlan,
                              String industry,
                              String website,
                              String description) {
@@ -795,9 +934,12 @@ public class EnterpriseOnboardingService {
             map.put("companyName", companyName);
             map.put("companyShortName", companyShortName);
             map.put("socialCreditCode", socialCreditCode);
-            map.put("country", country);
-            map.put("city", city);
+            map.put("country", countryCode);
+            map.put("countryDisplayName", countryDisplayName);
+            map.put("city", cityCode);
+            map.put("cityDisplayName", cityDisplayName);
             map.put("employeeScale", employeeScale != null ? employeeScale.name() : null);
+            map.put("annualHiringPlan", annualHiringPlan != null ? annualHiringPlan.name() : null);
             map.put("industry", industry);
             map.put("website", website);
             map.put("description", description);

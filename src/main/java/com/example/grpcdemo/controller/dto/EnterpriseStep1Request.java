@@ -1,5 +1,6 @@
 package com.example.grpcdemo.controller.dto;
 
+import com.example.grpcdemo.onboarding.AnnualHiringPlan;
 import com.example.grpcdemo.onboarding.EmployeeScale;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -27,6 +28,9 @@ public class EnterpriseStep1Request {
 
     @NotBlank(message = "所属城市不能为空")
     private String city;
+
+    @NotNull(message = "请选择年度招聘计划")
+    private AnnualHiringPlan annualHiringPlan;
 
     @NotNull(message = "请选择企业规模")
     private EmployeeScale employeeScale;
@@ -94,6 +98,14 @@ public class EnterpriseStep1Request {
 
     public void setEmployeeScale(EmployeeScale employeeScale) {
         this.employeeScale = employeeScale;
+    }
+
+    public AnnualHiringPlan getAnnualHiringPlan() {
+        return annualHiringPlan;
+    }
+
+    public void setAnnualHiringPlan(AnnualHiringPlan annualHiringPlan) {
+        this.annualHiringPlan = annualHiringPlan;
     }
 
     public String getIndustry() {

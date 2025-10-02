@@ -4,6 +4,7 @@ import com.example.grpcdemo.controller.dto.EnterpriseStep1Request;
 import com.example.grpcdemo.controller.dto.EnterpriseStep2Request;
 import com.example.grpcdemo.controller.dto.EnterpriseStep3Request;
 import com.example.grpcdemo.controller.dto.EnterpriseVerifyRequest;
+import com.example.grpcdemo.controller.dto.LocationOptionDto;
 import com.example.grpcdemo.controller.dto.OnboardingStateResponse;
 import com.example.grpcdemo.service.EnterpriseOnboardingService;
 import jakarta.validation.Valid;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * REST controller exposing enterprise onboarding step endpoints for the Vue client.
@@ -32,6 +35,19 @@ public class EnterpriseOnboardingController {
     public OnboardingStateResponse getState(@RequestParam("userId") String userId,
                                             @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
         return onboardingService.getState(userId, acceptLanguage);
+
+    }
+
+    @GetMapping("/locations/countries")
+    public List<LocationOptionDto> listCountries(@RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return onboardingService.listCountries(acceptLanguage);
+    }
+
+    @GetMapping("/locations/cities")
+    public List<LocationOptionDto> listCities(@RequestParam("country") String countryCode,
+                                             @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        return onboardingService.listCities(countryCode, acceptLanguage);
+
     }
 
     @PostMapping("/step1")
