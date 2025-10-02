@@ -1,6 +1,5 @@
 package com.example.grpcdemo.location;
 
-import com.neovisionaries.i18n.CountrySubdivision;
 import org.springframework.stereotype.Component;
 
 import java.text.Collator;
@@ -30,7 +29,7 @@ public class LocationCatalog {
 
     private final List<String> countryCodes;
     private final Set<String> countryCodeSet;
-    private final Map<String, List<CountrySubdivision>> subdivisionsByCountry;
+    private final Map<String, List<Object>> subdivisionsByCountry;
 
     public LocationCatalog() {
         this.countryCodes = Arrays.stream(Locale.getISOCountries())
@@ -38,10 +37,7 @@ public class LocationCatalog {
                 .sorted()
                 .toList();
         this.countryCodeSet = new HashSet<>(countryCodes);
-        this.subdivisionsByCountry = Arrays.stream(CountrySubdivision.values())
-                .filter(subdivision -> subdivision.getCountry() != null)
-                .filter(subdivision -> normalizeCode(subdivision.getCountry().getAlpha2()) != null)
-                .collect(Collectors.groupingBy(subdivision -> normalizeCode(subdivision.getCountry().getAlpha2())));
+        this.subdivisionsByCountry = loadSubdivisions();
     }
 
     public List<LocationOption> listCountries(Locale locale) {
@@ -91,7 +87,47 @@ public class LocationCatalog {
         return localized;
     }
 
-    private static String localizedSubdivisionName(CountrySubdivision subdivision, Locale locale) {
+    private static Map<String, List<Object>> loadSubdivisions() {
+        Class<?> subdivisionClass = loadSubdivisionClass();
+        if (subdivisionClass == null) {
+            return Map.of();
+        }
+        Object[] constants = subdivisionClass.getEnumConstants();
+        if (constants == null || constants.length == 0) {
+            return Map.of();
+        }
+
+        return Arrays.stream(constants)
+                .map(subdivision -> new SubdivisionEntry(subdivision, extractCountryCode(subdivision)))
+                .filter(entry -> entry.countryCode() != null)
+                .collect(Collectors.groupingBy(SubdivisionEntry::countryCode,
+                        Collectors.mapping(SubdivisionEntry::value, Collectors.toList())));
+    }
+
+    private static Class<?> loadSubdivisionClass() {
+        try {
+            return Class.forName("com.neovisionaries.i18n.CountrySubdivision");
+        } catch (ClassNotFoundException ex) {
+            return null;
+        }
+    }
+
+    private static String extractCountryCode(Object subdivision) {
+        if (subdivision == null) {
+            return null;
+        }
+        Object country = invokeMethod(subdivision, "getCountry");
+        if (country == null) {
+            return null;
+        }
+        Object alpha2 = invokeMethod(country, "getAlpha2");
+        if (alpha2 == null) {
+            return null;
+        }
+        return normalizeCode(alpha2.toString());
+    }
+
+    private static String localizedSubdivisionName(Object subdivision, Locale locale) {
         Locale targetLocale = locale == null ? DEFAULT_LOCALE : locale;
         String localized = invokeSubdivisionName(subdivision, targetLocale);
         if (localized == null || localized.isBlank()) {
@@ -103,36 +139,43 @@ public class LocationCatalog {
         return localized;
     }
 
-    private static String subdivisionCode(CountrySubdivision subdivision) {
-        try {
-            Object value = CountrySubdivision.class.getMethod("getCode").invoke(subdivision);
-            if (value != null) {
-                return value.toString();
-            }
-        } catch (ReflectiveOperationException ignored) {
-            // Fall back to enum name if the method is unavailable in the runtime version.
+    private static String subdivisionCode(Object subdivision) {
+        Object value = invokeMethod(subdivision, "getCode");
+        if (value != null) {
+            return value.toString();
         }
-        return humanizeCode(subdivision.name());
+        value = invokeMethod(subdivision, "name");
+        if (value != null) {
+            return humanizeCode(value.toString());
+        }
+        return subdivision == null ? "" : humanizeCode(subdivision.toString());
     }
 
-    private static String invokeSubdivisionName(CountrySubdivision subdivision, Locale locale) {
-        try {
-            Object value = CountrySubdivision.class.getMethod("getName", Locale.class).invoke(subdivision, locale);
-            if (value != null) {
-                return value.toString();
-            }
-        } catch (ReflectiveOperationException ignored) {
-            // Fall back to default name.
+    private static String invokeSubdivisionName(Object subdivision, Locale locale) {
+        Object value = invokeMethod(subdivision, "getName", new Class<?>[]{Locale.class}, new Object[]{locale});
+        if (value != null) {
+            return value.toString();
         }
-        try {
-            Object value = CountrySubdivision.class.getMethod("getName").invoke(subdivision);
-            if (value != null) {
-                return value.toString();
-            }
-        } catch (ReflectiveOperationException ignored) {
-            // Ignore and fall back to code-based humanisation.
+        value = invokeMethod(subdivision, "getName");
+        if (value != null) {
+            return value.toString();
         }
         return null;
+    }
+
+    private static Object invokeMethod(Object target, String methodName) {
+        return invokeMethod(target, methodName, new Class<?>[0], new Object[0]);
+    }
+
+    private static Object invokeMethod(Object target, String methodName, Class<?>[] parameterTypes, Object[] args) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName, parameterTypes).invoke(target, args);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     private static String humanizeCode(String code) {
@@ -149,4 +192,6 @@ public class LocationCatalog {
     private static Locale normalizeLocale(Locale locale) {
         return locale == null ? DEFAULT_LOCALE : locale;
     }
+
+    private record SubdivisionEntry(Object value, String countryCode) { }
 }
