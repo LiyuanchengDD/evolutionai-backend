@@ -5,16 +5,18 @@ import com.example.grpcdemo.auth.AuthRole;
 import com.example.grpcdemo.controller.dto.AuthResponseDto;
 import com.example.grpcdemo.controller.dto.LoginRequest;
 import com.example.grpcdemo.controller.dto.RegisterRequest;
-import com.example.grpcdemo.controller.dto.SendVerificationCodeRequest;
+import com.example.grpcdemo.controller.dto.SendCodeRequest;
 import com.example.grpcdemo.controller.dto.ResetPasswordRequest;
 import com.example.grpcdemo.controller.dto.SuccessResponse;
 import com.example.grpcdemo.controller.dto.VerificationCodeResponseDto;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api")
@@ -26,24 +28,14 @@ public class AuthController {
         this.authManager = authManager;
     }
 
-    @PostMapping("/{segment}/auth/register/send-code")
-    public VerificationCodeResponseDto sendRegisterCode(@PathVariable("segment") String segment,
-                                                        @Valid @RequestBody SendVerificationCodeRequest request) {
-        AuthRole role = resolveRole(segment);
-        AuthManager.VerificationResult result = authManager.requestRegistrationCode(
-                request.getEmail(),
-                role
-        );
-        return new VerificationCodeResponseDto(result.requestId(), result.expiresInSeconds());
-    }
-
     @PostMapping("/{segment}/auth/password/reset/send-code")
-    public VerificationCodeResponseDto sendResetCode(@PathVariable("segment") String segment,
-                                                     @Valid @RequestBody SendVerificationCodeRequest request) {
+    public VerificationCodeResponseDto sendVerificationCode(@PathVariable("segment") String segment,
+                                                            @Valid @RequestBody SendCodeRequest request) {
         AuthRole role = resolveRole(segment);
-        AuthManager.VerificationResult result = authManager.requestPasswordResetCode(
+        AuthManager.VerificationResult result = authManager.requestVerificationCode(
                 request.getEmail(),
-                role
+                role,
+                request.getPurpose()
         );
         return new VerificationCodeResponseDto(result.requestId(), result.expiresInSeconds());
     }
@@ -76,7 +68,7 @@ public class AuthController {
         return switch (segment.toLowerCase()) {
             case "b", "company" -> AuthRole.COMPANY;
             case "c", "engineer" -> AuthRole.ENGINEER;
-            default -> throw new IllegalArgumentException("未知的角色入口: " + segment);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知的角色入口: " + segment);
         };
     }
 

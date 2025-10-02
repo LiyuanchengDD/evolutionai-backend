@@ -11,6 +11,7 @@ import com.example.grpcdemo.controller.dto.OnboardingStateResponse;
 import com.example.grpcdemo.controller.dto.OnboardingStepRecordDto;
 import com.example.grpcdemo.entity.CompanyContactEntity;
 import com.example.grpcdemo.entity.CompanyProfileEntity;
+import com.example.grpcdemo.entity.EnterpriseOnboardingSessionEntity;
 import com.example.grpcdemo.entity.InvitationTemplateEntity;
 import com.example.grpcdemo.entity.VerificationTokenEntity;
 import com.example.grpcdemo.onboarding.CompanyStatus;
@@ -21,12 +22,17 @@ import com.example.grpcdemo.onboarding.OnboardingException;
 import com.example.grpcdemo.repository.CompanyContactRepository;
 import com.example.grpcdemo.repository.CompanyProfileRepository;
 import com.example.grpcdemo.repository.InvitationTemplateRepository;
+import com.example.grpcdemo.repository.EnterpriseOnboardingSessionRepository;
 import com.example.grpcdemo.repository.VerificationTokenRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -64,36 +70,54 @@ public class EnterpriseOnboardingService {
 
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\[\\[(.+?)]]");
 
+    private static final Duration SESSION_TTL = Duration.ofHours(24);
+
     private final Map<String, EnterpriseOnboardingSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, Object> sessionLocks = new ConcurrentHashMap<>();
     private final CompanyProfileRepository companyProfileRepository;
     private final CompanyContactRepository companyContactRepository;
     private final InvitationTemplateRepository invitationTemplateRepository;
     private final VerificationTokenRepository verificationTokenRepository;
+    private final EnterpriseOnboardingSessionRepository sessionRepository;
+    private final ObjectMapper objectMapper;
     private final Clock clock;
 
     public EnterpriseOnboardingService(CompanyProfileRepository companyProfileRepository,
                                        CompanyContactRepository companyContactRepository,
                                        InvitationTemplateRepository invitationTemplateRepository,
-                                       VerificationTokenRepository verificationTokenRepository) {
-        this(companyProfileRepository, companyContactRepository, invitationTemplateRepository, verificationTokenRepository, Clock.systemUTC());
+                                       VerificationTokenRepository verificationTokenRepository,
+                                       EnterpriseOnboardingSessionRepository sessionRepository,
+                                       ObjectMapper objectMapper) {
+        this(companyProfileRepository,
+                companyContactRepository,
+                invitationTemplateRepository,
+                verificationTokenRepository,
+                sessionRepository,
+                objectMapper,
+                Clock.systemUTC());
     }
 
     EnterpriseOnboardingService(CompanyProfileRepository companyProfileRepository,
                                 CompanyContactRepository companyContactRepository,
                                 InvitationTemplateRepository invitationTemplateRepository,
                                 VerificationTokenRepository verificationTokenRepository,
+                                EnterpriseOnboardingSessionRepository sessionRepository,
+                                ObjectMapper objectMapper,
                                 Clock clock) {
         this.companyProfileRepository = companyProfileRepository;
         this.companyContactRepository = companyContactRepository;
         this.invitationTemplateRepository = invitationTemplateRepository;
         this.verificationTokenRepository = verificationTokenRepository;
+        this.sessionRepository = sessionRepository;
+        this.objectMapper = objectMapper;
         this.clock = clock;
     }
 
     public OnboardingStateResponse saveStep1(EnterpriseStep1Request request) {
         ensureNotCompleted(request.getUserId());
-        EnterpriseOnboardingSession session = sessions.computeIfAbsent(request.getUserId(), EnterpriseOnboardingSession::new);
-        synchronized (session) {
+        Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
+        synchronized (lock) {
+            EnterpriseOnboardingSession session = loadSession(request.getUserId(), true);
             Step1Data data = new Step1Data(
                     request.getCompanyName(),
                     request.getCompanyShortName(),
@@ -108,14 +132,17 @@ public class EnterpriseOnboardingService {
             Instant now = clock.instant();
             session.setStep1(data, now);
             session.setCurrentStep(2);
+            session.refreshExpiration(now.plus(SESSION_TTL));
+            persistSession(session, now);
             return buildStateFromSession(session);
         }
     }
 
     public OnboardingStateResponse saveStep2(EnterpriseStep2Request request) {
         ensureNotCompleted(request.getUserId());
-        EnterpriseOnboardingSession session = requireSession(request.getUserId());
-        synchronized (session) {
+        Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
+        synchronized (lock) {
+            EnterpriseOnboardingSession session = requireSession(request.getUserId());
             if (session.getStep1() == null) {
                 throw new OnboardingException(OnboardingErrorCode.MISSING_PREVIOUS_STEP);
             }
@@ -130,14 +157,17 @@ public class EnterpriseOnboardingService {
             Instant now = clock.instant();
             session.setStep2(data, now);
             session.setCurrentStep(3);
+            session.refreshExpiration(now.plus(SESSION_TTL));
+            persistSession(session, now);
             return buildStateFromSession(session);
         }
     }
 
     public OnboardingStateResponse saveStep3(EnterpriseStep3Request request) {
         ensureNotCompleted(request.getUserId());
-        EnterpriseOnboardingSession session = requireSession(request.getUserId());
-        synchronized (session) {
+        Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
+        synchronized (lock) {
+            EnterpriseOnboardingSession session = requireSession(request.getUserId());
             if (session.getStep2() == null) {
                 throw new OnboardingException(OnboardingErrorCode.MISSING_PREVIOUS_STEP);
             }
@@ -152,6 +182,8 @@ public class EnterpriseOnboardingService {
             Instant now = clock.instant();
             session.setStep3(data, now);
             session.setCurrentStep(4);
+            session.refreshExpiration(now.plus(SESSION_TTL));
+            persistSession(session, now);
             return buildStateFromSession(session);
         }
     }
@@ -159,8 +191,9 @@ public class EnterpriseOnboardingService {
     @Transactional
     public OnboardingStateResponse verifyAndComplete(EnterpriseVerifyRequest request) {
         ensureNotCompleted(request.getUserId());
-        EnterpriseOnboardingSession session = requireSession(request.getUserId());
-        synchronized (session) {
+        Object lock = sessionLocks.computeIfAbsent(request.getUserId(), key -> new Object());
+        synchronized (lock) {
+            EnterpriseOnboardingSession session = requireSession(request.getUserId());
             if (session.getStep3() == null) {
                 throw new OnboardingException(OnboardingErrorCode.MISSING_PREVIOUS_STEP);
             }
@@ -197,6 +230,10 @@ public class EnterpriseOnboardingService {
 
             List<OnboardingStepRecordDto> records = session.toRecordDtos();
             sessions.remove(request.getUserId());
+            if (sessionRepository.existsById(request.getUserId())) {
+                sessionRepository.deleteById(request.getUserId());
+            }
+            sessionLocks.remove(request.getUserId());
 
             return buildCompletedState(request.getUserId(), companyId, step1, step2, step3, records);
         }
@@ -217,17 +254,18 @@ public class EnterpriseOnboardingService {
                     .orElse(null);
             return buildCompletedStateFromPersistence(userId, profile, contact, template);
         }
-        EnterpriseOnboardingSession session = sessions.get(userId);
-        if (session == null) {
-            OnboardingStateResponse response = new OnboardingStateResponse();
-            response.setUserId(userId);
-            response.setCurrentStep(1);
-            response.setCompleted(false);
-            response.setAvailableVariables(AVAILABLE_TEMPLATE_VARIABLES);
-            response.setRecords(Collections.emptyList());
-            return response;
-        }
-        synchronized (session) {
+        Object lock = sessionLocks.computeIfAbsent(userId, key -> new Object());
+        synchronized (lock) {
+            EnterpriseOnboardingSession session = loadSession(userId, false);
+            if (session == null) {
+                OnboardingStateResponse response = new OnboardingStateResponse();
+                response.setUserId(userId);
+                response.setCurrentStep(1);
+                response.setCompleted(false);
+                response.setAvailableVariables(AVAILABLE_TEMPLATE_VARIABLES);
+                response.setRecords(Collections.emptyList());
+                return response;
+            }
             return buildStateFromSession(session);
         }
     }
@@ -242,7 +280,7 @@ public class EnterpriseOnboardingService {
     }
 
     private EnterpriseOnboardingSession requireSession(String userId) {
-        EnterpriseOnboardingSession session = sessions.get(userId);
+        EnterpriseOnboardingSession session = loadSession(userId, false);
         if (session == null) {
             throw new OnboardingException(OnboardingErrorCode.SESSION_NOT_FOUND);
         }
@@ -300,6 +338,98 @@ public class EnterpriseOnboardingService {
         response.setRecords(Collections.emptyList());
         response.setAvailableVariables(AVAILABLE_TEMPLATE_VARIABLES);
         return response;
+    }
+
+    private EnterpriseOnboardingSession loadSession(String userId, boolean createIfMissing) {
+        Instant now = clock.instant();
+        EnterpriseOnboardingSession session = sessions.get(userId);
+        if (session != null && session.isExpired(now)) {
+            sessions.remove(userId);
+            session = null;
+        }
+        if (session == null) {
+            sessionRepository.deleteByExpiresAtBefore(now);
+            session = sessionRepository.findById(userId)
+                    .map(this::fromEntity)
+                    .orElse(null);
+            if (session != null) {
+                if (session.isExpired(now)) {
+                    sessionRepository.deleteById(userId);
+                    session = null;
+                } else {
+                    sessions.put(userId, session);
+                }
+            }
+        }
+        if (session == null && createIfMissing) {
+            session = new EnterpriseOnboardingSession(userId);
+            session.refreshExpiration(now.plus(SESSION_TTL));
+            sessions.put(userId, session);
+        }
+        return session;
+    }
+
+    private EnterpriseOnboardingSession fromEntity(EnterpriseOnboardingSessionEntity entity) {
+        EnterpriseOnboardingSession session = new EnterpriseOnboardingSession(entity.getUserId());
+        session.currentStep = entity.getCurrentStep();
+        session.step1 = readJson(entity.getStep1Data(), Step1Data.class);
+        session.step2 = readJson(entity.getStep2Data(), Step2Data.class);
+        session.step3 = readJson(entity.getStep3Data(), Step3Data.class);
+        session.replaceRecords(readRecordStates(entity.getRecordsData()));
+        session.setExpiresAt(entity.getExpiresAt());
+        return session;
+    }
+
+    private void persistSession(EnterpriseOnboardingSession session, Instant now) {
+        EnterpriseOnboardingSessionEntity entity = sessionRepository.findById(session.getUserId())
+                .orElseGet(() -> {
+                    EnterpriseOnboardingSessionEntity created = new EnterpriseOnboardingSessionEntity();
+                    created.setUserId(session.getUserId());
+                    created.setCreatedAt(now);
+                    return created;
+                });
+        entity.setCurrentStep(session.getCurrentStep());
+        entity.setStep1Data(writeJson(session.getStep1()));
+        entity.setStep2Data(writeJson(session.getStep2()));
+        entity.setStep3Data(writeJson(session.getStep3()));
+        entity.setRecordsData(writeJson(session.toRecordStates()));
+        entity.setExpiresAt(session.getExpiresAt());
+        entity.setUpdatedAt(now);
+        sessionRepository.save(entity);
+    }
+
+    private String writeJson(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize onboarding session state", e);
+        }
+    }
+
+    private <T> T readJson(String json, Class<T> type) {
+        if (!StringUtils.hasText(json)) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, type);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize onboarding session state", e);
+        }
+    }
+
+    private List<StepRecordState> readRecordStates(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<StepRecordState>>() {
+            });
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize onboarding step records", e);
+        }
     }
 
     private CompanyProfileEntity createCompanyProfileEntity(Step1Data data, String userId, String companyId, Instant now) {
@@ -449,6 +579,7 @@ public class EnterpriseOnboardingService {
         private Step2Data step2;
         private Step3Data step3;
         private int currentStep = 1;
+        private Instant expiresAt = Instant.EPOCH;
 
         private EnterpriseOnboardingSession(String userId) {
             this.userId = userId;
@@ -493,10 +624,46 @@ public class EnterpriseOnboardingService {
             this.currentStep = currentStep;
         }
 
+        public Instant getExpiresAt() {
+            return expiresAt;
+        }
+
+        public void setExpiresAt(Instant expiresAt) {
+            this.expiresAt = expiresAt;
+        }
+
+        public void refreshExpiration(Instant expiresAt) {
+            this.expiresAt = expiresAt;
+        }
+
+        public boolean isExpired(Instant now) {
+            return expiresAt != null && now.isAfter(expiresAt);
+        }
+
         public List<OnboardingStepRecordDto> toRecordDtos() {
             return records.stream()
                     .map(record -> new OnboardingStepRecordDto(record.step, record.savedAt, record.payload))
                     .collect(Collectors.toList());
+        }
+
+        public List<StepRecordState> toRecordStates() {
+            return records.stream()
+                    .map(record -> new StepRecordState(record.step, record.savedAt, record.payload))
+                    .collect(Collectors.toList());
+        }
+
+        public void replaceRecords(List<StepRecordState> states) {
+            records.clear();
+            if (states == null) {
+                return;
+            }
+            for (StepRecordState state : states) {
+                if (state == null) {
+                    continue;
+                }
+                records.add(new StepRecord(state.step(), state.savedAt(), state.payload()));
+            }
+            records.sort((a, b) -> Integer.compare(a.step, b.step));
         }
 
         private void saveRecord(int step, Map<String, Object> payload, Instant savedAt) {
@@ -512,6 +679,9 @@ public class EnterpriseOnboardingService {
                 records.sort((a, b) -> Integer.compare(a.step, b.step));
             }
         }
+    }
+
+    private record StepRecordState(int step, Instant savedAt, Map<String, Object> payload) {
     }
 
     private record Step1Data(String companyName,
