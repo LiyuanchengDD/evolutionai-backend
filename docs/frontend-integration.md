@@ -134,7 +134,10 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
   - `records` —— 以列表形式返回后台临时 List 中的每一步快照，方便页面在“上一步”时回填。
   - `availableVariables` —— 邀约模版支持的动态变量列表，可用于渲染插入按钮。
   - `completed`+`companyId` —— 当 `completed=true` 时表示已经点击“验证并进入 Evolution AI”并完成入库。
-  该对象的完整字段见 `OnboardingStateResponse` 定义。【F:src/main/java/com/example/grpcdemo/controller/dto/OnboardingStateResponse.java†L9-L58】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L129-L165】
+  该对象的完整字段见 `OnboardingStateResponse` 定义。【F:src/main/java/com/example/grpcdemo/controller/dto/OnboardingStateResponse.java†L9-L58】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L372-L424】
+
+- **使用建议**：每次进入任一步骤前先调用一次 `GET /state` 并用返回的 `companyInfo`/`contactInfo`/`templateInfo` 回填表单字段；后端会把草稿同步写入 `enterprise_onboarding_sessions` 表，并在用户重新进入或返回上一步时重新加载。【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L156-L339】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L548-L608】【F:src/main/java/com/example/grpcdemo/entity/EnterpriseOnboardingSessionEntity.java†L16-L99】
+- **覆盖更新**：同一个 `userId` 重复调用 `POST /step{N}` 会覆盖该步骤之前的草稿并更新快照列表，方便用户修改后再次提交。【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L156-L247】【F:src/main/java/com/example/grpcdemo/service/EnterpriseOnboardingService.java†L808-L908】
 
 ### 2. 步骤一：企业基础信息
 - **Endpoint**：`POST /api/enterprise/onboarding/step1`
