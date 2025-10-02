@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 public enum OnboardingErrorCode {
     SESSION_NOT_FOUND(HttpStatus.BAD_REQUEST, "未找到该用户的引导记录"),
     MISSING_PREVIOUS_STEP(HttpStatus.BAD_REQUEST, "请先完成上一阶段信息"),
+    INVALID_LOCATION(HttpStatus.BAD_REQUEST, "请选择有效的国家和城市"),
     INVALID_TEMPLATE_VARIABLE(HttpStatus.BAD_REQUEST, "包含未支持的模版变量"),
     INVALID_VERIFICATION_CODE(HttpStatus.BAD_REQUEST, "验证码不正确"),
     VERIFICATION_CODE_EXPIRED(HttpStatus.BAD_REQUEST, "验证码已过期"),

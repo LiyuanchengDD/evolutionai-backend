@@ -127,6 +127,13 @@
             <version>4.4.0</version>
         </dependency>
 
+        <!-- ISO country & subdivision catalog -->
+        <dependency>
+            <groupId>com.neovisionaries</groupId>
+            <artifactId>nv-i18n</artifactId>
+            <version>1.29</version>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

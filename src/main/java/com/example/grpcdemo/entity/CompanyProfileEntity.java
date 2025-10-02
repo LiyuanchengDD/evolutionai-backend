@@ -1,5 +1,6 @@
 package com.example.grpcdemo.entity;
 
+import com.example.grpcdemo.onboarding.AnnualHiringPlan;
 import com.example.grpcdemo.onboarding.CompanyStatus;
 import com.example.grpcdemo.onboarding.EmployeeScale;
 import jakarta.persistence.Column;
@@ -38,14 +39,18 @@ public class CompanyProfileEntity {
     @Column(name = "employee_scale", nullable = false, length = 64)
     private EmployeeScale employeeScale;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "annual_hiring_plan", nullable = false, length = 64)
+    private AnnualHiringPlan annualHiringPlan;
+
     @Column(name = "industry", length = 255)
     private String industry;
 
-    @Column(name = "country", nullable = false, length = 128)
-    private String country;
+    @Column(name = "country_code", nullable = false, length = 8)
+    private String countryCode;
 
-    @Column(name = "city", nullable = false, length = 128)
-    private String city;
+    @Column(name = "city_code", nullable = false, length = 16)
+    private String cityCode;
 
     @Column(name = "website", length = 255)
     private String website;
@@ -111,6 +116,14 @@ public class CompanyProfileEntity {
         this.employeeScale = employeeScale;
     }
 
+    public AnnualHiringPlan getAnnualHiringPlan() {
+        return annualHiringPlan;
+    }
+
+    public void setAnnualHiringPlan(AnnualHiringPlan annualHiringPlan) {
+        this.annualHiringPlan = annualHiringPlan;
+    }
+
     public String getIndustry() {
         return industry;
     }
@@ -119,20 +132,20 @@ public class CompanyProfileEntity {
         this.industry = industry;
     }
 
-    public String getCountry() {
-        return country;
+    public String getCountryCode() {
+        return countryCode;
     }
 
-    public void setCountry(String country) {
-        this.country = country;
+    public void setCountryCode(String countryCode) {
+        this.countryCode = countryCode;
     }
 
-    public String getCity() {
-        return city;
+    public String getCityCode() {
+        return cityCode;
     }
 
-    public void setCity(String city) {
-        this.city = city;
+    public void setCityCode(String cityCode) {
+        this.cityCode = cityCode;
     }
 
     public String getWebsite() {
