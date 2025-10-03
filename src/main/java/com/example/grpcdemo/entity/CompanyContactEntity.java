@@ -21,6 +21,9 @@ public class CompanyContactEntity {
     @Column(name = "company_id", nullable = false, length = 36)
     private String companyId;
 
+    @Column(name = "user_account_id", length = 36)
+    private String userAccountId;
+
     @Column(name = "contact_name", nullable = false, length = 128)
     private String contactName;
 
@@ -62,6 +65,14 @@ public class CompanyContactEntity {
 
     public void setCompanyId(String companyId) {
         this.companyId = companyId;
+    }
+
+    public String getUserAccountId() {
+        return userAccountId;
+    }
+
+    public void setUserAccountId(String userAccountId) {
+        this.userAccountId = userAccountId;
     }
 
     public String getContactName() {
