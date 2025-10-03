@@ -204,7 +204,7 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 - **Response** (`JobDetailResponse`):
   - `card` —— 最新岗位卡片快照。
   - `source` —— 创建来源（目前固定 `AI_IMPORT`）。
-  - `document` —— 解析详情（`JobDocumentResponse`），含原文件名、AI 提取的标题/地点/发布人、置信度、原始 JSON/错误信息。
+  - `document` —— 解析详情（`JobDocumentResponse`），含原文件名、AI 提取的标题/地点/发布人、置信度、原始 JSON/错误信息，以及 `documentHtml` 字段（内嵌 `<iframe>` 字符串，直接放入页面即可预览上传的 PDF）。
 - **失败处理**：
   - 文件为空或读取异常返回 400。
   - AI 解析失败时 `status` 会标记为 `PARSE_FAILED`，`document.aiRawResult` 返回错误信息，前端可提示用户转入手动编辑流程。【F:src/main/java/com/example/grpcdemo/service/CompanyJobService.java†L75-L143】
@@ -212,7 +212,7 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 
 ### 4. 查看岗位详情
 - **Endpoint**：`GET /api/enterprise/jobs/{positionId}`
-- **Response**：`JobDetailResponse`，结构同上，便于在编辑页面回填解析信息。
+- **Response**：`JobDetailResponse`，结构同上，便于在编辑页面回填解析信息。`document.documentHtml` 会返回一个内嵌 `<iframe>` 的 HTML 字符串，可直接插入岗位描述区域展示原始 PDF。
 
 ### 5. 编辑岗位卡片
 - **Endpoint**：`PATCH /api/enterprise/jobs/{positionId}`

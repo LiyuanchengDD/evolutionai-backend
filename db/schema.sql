@@ -146,6 +146,32 @@ CREATE TRIGGER set_company_recruiting_positions_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 
+CREATE TABLE IF NOT EXISTS public.company_job_documents (
+    document_id      uuid PRIMARY KEY,
+    position_id      uuid        NOT NULL REFERENCES public.company_recruiting_positions (position_id) ON DELETE CASCADE,
+    file_name        varchar(255),
+    file_type        varchar(100),
+    file_content     bytea,
+    upload_user_id   uuid,
+    ai_raw_result    text,
+    parsed_title     varchar(255),
+    parsed_location  varchar(255),
+    parsed_publisher varchar(255),
+    confidence       numeric(5, 2),
+    created_at       timestamptz NOT NULL DEFAULT now(),
+    updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS company_job_documents_position_uidx
+    ON public.company_job_documents (position_id);
+
+DROP TRIGGER IF EXISTS set_company_job_documents_updated_at
+    ON public.company_job_documents;
+CREATE TRIGGER set_company_job_documents_updated_at
+    BEFORE UPDATE ON public.company_job_documents
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
 CREATE TABLE IF NOT EXISTS public.invitation_templates (
     template_id     uuid PRIMARY KEY,
     company_id      uuid        NOT NULL REFERENCES public.company_profiles (company_id) ON DELETE CASCADE,

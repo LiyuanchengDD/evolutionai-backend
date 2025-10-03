@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Base64;
 
 /**
  * 与企业岗位卡片交互的领域服务。
@@ -131,6 +132,7 @@ public class CompanyJobService {
         document.setPositionId(positionId);
         document.setFileName(fileName);
         document.setFileType(contentType);
+        document.setFileContent(content);
         document.setUploadUserId(uploaderUserId);
         document.setCreatedAt(now);
         document.setUpdatedAt(now);
@@ -223,11 +225,25 @@ public class CompanyJobService {
                     document.getParsedPublisher(),
                     document.getConfidence(),
                     document.getAiRawResult(),
+                    buildDocumentHtml(document),
                     document.getCreatedAt(),
                     document.getUpdatedAt());
         }
         JobCardResponse card = toCard(entity);
         return new JobDetailResponse(card, entity.getSource(), documentResponse);
+    }
+
+    private String buildDocumentHtml(CompanyJobDocumentEntity document) {
+        byte[] content = document.getFileContent();
+        if (content == null || content.length == 0) {
+            return null;
+        }
+        String mimeType = StringUtils.hasText(document.getFileType())
+                ? document.getFileType()
+                : "application/pdf";
+        String base64 = Base64.getEncoder().encodeToString(content);
+        return "<iframe src=\"data:" + mimeType + ";base64," + base64
+                + "\" style=\"width:100%;height:100%;border:none;\"></iframe>";
     }
 
     private String resolveCompanyId(String companyId, String userId) {
