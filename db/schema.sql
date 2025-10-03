@@ -103,6 +103,7 @@ CREATE TRIGGER set_company_profiles_updated_at
 CREATE TABLE IF NOT EXISTS public.company_contacts (
     contact_id          uuid PRIMARY KEY,
     company_id          uuid        NOT NULL REFERENCES public.company_profiles (company_id) ON DELETE CASCADE,
+    user_account_id     uuid        REFERENCES public.user_accounts (user_id) ON DELETE SET NULL,
     contact_name        varchar(128) NOT NULL,
     contact_email       varchar(255) NOT NULL,
     phone_country_code  varchar(8)   NOT NULL,
@@ -116,6 +117,9 @@ CREATE TABLE IF NOT EXISTS public.company_contacts (
 
 CREATE INDEX IF NOT EXISTS company_contacts_company_id_idx
     ON public.company_contacts (company_id);
+
+CREATE INDEX IF NOT EXISTS company_contacts_user_account_id_idx
+    ON public.company_contacts (user_account_id);
 
 DROP TRIGGER IF EXISTS set_company_contacts_updated_at
     ON public.company_contacts;

@@ -118,6 +118,59 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 ### 前端流程建议
 1. **注册**：发送 purpose=`REGISTER` 的验证码 → 输入验证码连同邮箱、密码一起提交注册 → 保存返回的 `userId` 与令牌。
 2. **忘记密码**：发送 purpose=`RESET_PASSWORD` 的验证码 → 用户填写验证码与新密码 → 调用重置接口 → 引导回登录页重新登录。
+
+## 企业资料维护（企业端）
+
+企业端资料页分左右两部分：左侧展示岗位卡/企业概况，右侧允许编辑企业资料及 HR 列表。以下接口均在完成四步引导后可用，由
+`CompanyProfileController` 暴露。所有请求均接受可选 `Accept-Language` 头部（`zh`/`en`/`jp`），用于返回国家、城市与区号的本地化展示。【F:src/main/java/com/example/grpcdemo/controller/CompanyProfileController.java†L18-L74】【F:src/main/java/com/example/grpcdemo/service/CompanyProfileService.java†L37-L364】
+
+### 1. 查询企业资料
+- **Endpoint**：`GET /api/enterprise/profile?userId={ownerUserId}`
+- **Response** (`CompanyProfileResponse`):
+  - `companyId` —— 企业 ID。
+  - `company` —— 与引导阶段相同的企业信息字段（含 `companyName`、`countryDisplayName`、`recruitingPositions` 等）。
+  - `hrContacts` —— HR 列表，字段包含 `contactId`、`contactName`、`contactEmail`、`phoneCountryCode`、`phoneNumber`、`position`、`department`、`primary`、`userAccountId`。
+
+### 2. 更新企业信息
+- **Endpoint**：`PUT /api/enterprise/profile/company`
+- **Request body** (`CompanyInfoUpdateRequest`):
+  - `userId`（必填）—— 企业所有者账号 ID。
+  - `companyName`、`companyShortName`、`socialCreditCode`、`country`、`city`、`employeeScale`、`annualHiringPlan`、`industry`、`website`、`description`、`detailedAddress`、`recruitingPositions[]` 等字段与四步引导一致。
+- **Response**：更新后的 `CompanyProfileResponse`。
+- **说明**：`recruitingPositions` 会整表覆盖（最多 50 条，自动去重、去空）。
+
+### 3. 新增 HR 账号
+- **Endpoint**：`POST /api/enterprise/profile/hr`
+- **Request body** (`CreateHrRequest`):
+  - `userId`（必填）—— 企业所有者账号 ID。
+  - `contactName`、`contactEmail`、`phoneCountryCode`、`phoneNumber`（必填）。
+  - `position`、`department`、`primary`（可选）。
+  - `password`（可选，8~64 位）。若不传则后端自动生成一组强密码。
+- **Response** (`HrContactResponse`):
+  - `contact` —— 新增后的 HR 资料（含 `userAccountId`）。
+  - `password` —— 新账号的明文密码（只返回一次，前端需提示用户妥善保存）。
+- **行为说明**：会自动创建 `user_accounts` 登录记录，角色固定为 `company`，状态为 `ACTIVE`。若 `primary=true`，其余联系人会被取消主联系人标记。
+
+### 4. 更新 HR 资料
+- **Endpoint**：`PUT /api/enterprise/profile/hr/{contactId}`
+- **Request body** (`HrContactUpdateRequest`):
+  - `userId`（必填）—— 企业所有者账号 ID。
+  - 其余字段与创建时相同，额外支持 `newPassword`（可选）。
+- **Response** (`HrContactResponse`):
+  - `contact` —— 更新后的联系人信息。
+  - `password` —— 若提供 `newPassword` 则原样回传，便于前端提示用户密码已重置；否则为 `null`。
+- **行为说明**：若联系人已绑定 `userAccountId`，修改邮箱或密码会同步更新登录账号；若此前未绑定且提供了 `newPassword`，系统会自动创建新账号并绑定。
+
+### 5. 获取国际电话区号
+- **Endpoint**：`GET /api/enterprise/profile/calling-codes`
+- **Response**：数组元素为 `CallingCodeDto`：`countryCode`（ISO 3166-1）、`countryName`（按 `Accept-Language` 本地化）、`callingCode`（如 `+86`）。
+- **实现**：后端基于 libphonenumber 提供的元数据生成完整列表，可直接渲染到前端下拉框中。
+
+### 6. 生成强密码
+- **Endpoint**：`GET /api/enterprise/profile/password/suggestion`
+- **Response** (`PasswordSuggestionResponse`):
+  - `password` —— 长度 12 的随机强密码（至少包含大小写字母、数字、符号各 1 个）。
+- **用途**：前端在“生成密码”按钮点击时调用，配合创建/编辑 HR 流程使用。
 3. **令牌管理**：`accessToken`、`refreshToken` 当前为占位 UUID，后续可替换为正式 JWT。前端应在 Pinia/Vuex 中妥善保存并在需要时附加到后续请求头。
 
 ## Enterprise onboarding（企业注册资料引导）

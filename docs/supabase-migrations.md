@@ -10,7 +10,7 @@
 |-----------|----|------|
 | `UserAccountEntity` | `public.user_accounts` | 存储注册的登录账号。字段包含登录邮箱 `email`、`password_hash`、`role`、`status`（`ACTIVE/PENDING/LOCKED`）以及最近登录时间 `last_login_at`，邮箱字段全局唯一。 |
 | `CompanyProfileEntity` | `public.company_profiles` | 保存企业引导完成后的主体信息，包括企业规模、所在地等。 |
-| `CompanyContactEntity` | `public.company_contacts` | 保存企业 HR 联系人及其电话、邮箱等信息。 |
+| `CompanyContactEntity` | `public.company_contacts` | 保存企业 HR 联系人及其电话、邮箱等信息，`user_account_id`（可空）用于关联可登录的 HR 账号。 |
 | `InvitationTemplateEntity` | `public.invitation_templates` | 保存企业配置的邀约邮件模版，并通过部分唯一索引保证每个企业只有一个默认模版。 |
 | `VerificationTokenEntity` | `public.verification_tokens` | 保存企业引导流程中发送的验证码，索引覆盖 `(target_user_id, purpose, code, consumed)` 以支撑查询。 |
 | `Job` | `public.jobs` | 表示通过 gRPC job 服务对外暴露的职位信息。 |

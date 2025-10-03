@@ -11,4 +11,8 @@ import java.util.Optional;
 public interface UserAccountRepository extends JpaRepository<UserAccountEntity, String> {
 
     Optional<UserAccountEntity> findByEmailAndRole(String email, String role);
+
+    Optional<UserAccountEntity> findByEmailIgnoreCase(String email);
+
+    boolean existsByEmailIgnoreCaseAndUserIdNot(String email, String userId);
 }

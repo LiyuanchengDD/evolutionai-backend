@@ -291,7 +291,7 @@ public class EnterpriseOnboardingService {
 
             String companyId = UUID.randomUUID().toString();
             CompanyProfileEntity profile = createCompanyProfileEntity(step1, request.getUserId(), companyId, now);
-            CompanyContactEntity contact = createContactEntity(step2, companyId, now);
+            CompanyContactEntity contact = createContactEntity(step2, companyId, request.getUserId(), now);
             InvitationTemplateEntity template = createTemplateEntity(step3, companyId, now);
             List<CompanyRecruitingPositionEntity> recruitingPositions =
                     createRecruitingPositionEntities(step1.recruitingPositions, companyId, now);
@@ -672,10 +672,11 @@ public class EnterpriseOnboardingService {
         return profile;
     }
 
-    private CompanyContactEntity createContactEntity(Step2Data data, String companyId, Instant now) {
+    private CompanyContactEntity createContactEntity(Step2Data data, String companyId, String userId, Instant now) {
         CompanyContactEntity contact = new CompanyContactEntity();
         contact.setContactId(UUID.randomUUID().toString());
         contact.setCompanyId(companyId);
+        contact.setUserAccountId(userId);
         contact.setContactName(data.contactName);
         contact.setContactEmail(data.contactEmail);
         contact.setPhoneCountryCode(data.phoneCountryCode);

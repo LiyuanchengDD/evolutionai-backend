@@ -127,6 +127,13 @@
             <version>1.29</version>
         </dependency>
 
+        <!-- International phone metadata -->
+        <dependency>
+            <groupId>com.googlecode.libphonenumber</groupId>
+            <artifactId>libphonenumber</artifactId>
+            <version>8.13.35</version>
+        </dependency>
+
         <!-- JWT generation -->
         <dependency>
             <groupId>com.auth0</groupId>
