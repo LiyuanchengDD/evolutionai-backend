@@ -11,5 +11,9 @@ import java.util.List;
 public interface CompanyRecruitingPositionRepository extends JpaRepository<CompanyRecruitingPositionEntity, String> {
 
     List<CompanyRecruitingPositionEntity> findByCompanyId(String companyId);
+
+    List<CompanyRecruitingPositionEntity> findByCompanyIdOrderByUpdatedAtDesc(String companyId);
+
+    long countByCompanyId(String companyId);
 }
 

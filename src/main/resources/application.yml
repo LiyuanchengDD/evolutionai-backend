@@ -24,3 +24,5 @@ spring:
 ai:
   evaluation-service:
     base-url: http://localhost:8085
+  job-parser:
+    base-url: http://localhost:8090
