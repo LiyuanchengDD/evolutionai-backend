@@ -28,6 +28,10 @@ public class CompanyJobDocumentEntity {
     @Column(name = "file_type", length = 100)
     private String fileType;
 
+    @Lob
+    @Column(name = "file_content")
+    private byte[] fileContent;
+
     @Column(name = "upload_user_id", length = 36)
     private String uploadUserId;
 
@@ -83,6 +87,14 @@ public class CompanyJobDocumentEntity {
 
     public void setFileType(String fileType) {
         this.fileType = fileType;
+    }
+
+    public byte[] getFileContent() {
+        return fileContent;
+    }
+
+    public void setFileContent(byte[] fileContent) {
+        this.fileContent = fileContent;
     }
 
     public String getUploadUserId() {

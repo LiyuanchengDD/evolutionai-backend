@@ -17,6 +17,7 @@ public class JobDocumentResponse {
     private final String parsedPublisher;
     private final Float confidence;
     private final String aiRawResult;
+    private final String documentHtml;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private final Instant createdAt;
@@ -32,6 +33,7 @@ public class JobDocumentResponse {
                                String parsedPublisher,
                                Float confidence,
                                String aiRawResult,
+                               String documentHtml,
                                Instant createdAt,
                                Instant updatedAt) {
         this.documentId = documentId;
@@ -42,6 +44,7 @@ public class JobDocumentResponse {
         this.parsedPublisher = parsedPublisher;
         this.confidence = confidence;
         this.aiRawResult = aiRawResult;
+        this.documentHtml = documentHtml;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -76,6 +79,10 @@ public class JobDocumentResponse {
 
     public String getAiRawResult() {
         return aiRawResult;
+    }
+
+    public String getDocumentHtml() {
+        return documentHtml;
     }
 
     public Instant getCreatedAt() {
