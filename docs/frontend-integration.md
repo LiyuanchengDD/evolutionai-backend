@@ -173,6 +173,57 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 - **用途**：前端在“生成密码”按钮点击时调用，配合创建/编辑 HR 流程使用。
 3. **令牌管理**：`accessToken`、`refreshToken` 当前为占位 UUID，后续可替换为正式 JWT。前端应在 Pinia/Vuex 中妥善保存并在需要时附加到后续请求头。
 
+## 企业岗位导入与编辑
+
+企业端岗位页依赖以下 REST 接口，由 `CompanyJobController` 暴露在 `/api/enterprise/jobs` 路由下，核心业务逻辑封装在 `CompanyJobService` 中。【F:src/main/java/com/example/grpcdemo/controller/CompanyJobController.java†L15-L79】【F:src/main/java/com/example/grpcdemo/service/CompanyJobService.java†L33-L213】
+
+### 1. 判断是否展示引导弹窗
+- **Endpoint**：`GET /api/enterprise/jobs/summary`
+- **Query 参数**：
+  - `companyId`（可选）—— 企业 ID。
+  - `userId`（可选）—— 当前登录用户 ID；未传 `companyId` 时用于反查归属企业。
+- **Response** (`JobSummaryResponse`):
+  - `companyId` —— 解析后的企业 ID。
+  - `totalPositions` —— 当前岗位数量。
+  - `shouldShowOnboarding` —— 是否需要展示首次引导（岗位数量为 0 时为 `true`）。
+- **备注**：`companyId` 与 `userId` 至少提供其一，否则后端返回 400。
+
+### 2. 获取岗位卡片列表
+- **Endpoint**：`GET /api/enterprise/jobs`
+- **Query 参数**：同上。
+- **Response**：数组元素为 `JobCardResponse`，字段包含 `positionId`、`positionName`、`positionLocation`、`publisherNickname`、`status`、`updatedAt`（ISO-8601 字符串）。
+- **排序**：按 `updatedAt` 倒序返回，方便前端最新更新的岗位排在顶部。
+
+### 3. 上传岗位 JD（PDF）并触发 AI 解析
+- **Endpoint**：`POST /api/enterprise/jobs/import`
+- **Content-Type**：`multipart/form-data`
+- **表单字段**：
+  - `companyId` 或 `userId` —— 与列表接口相同，用于定位企业。
+  - `uploaderUserId`（必填）—— 当前上传人 ID，后端会写入解析记录。
+  - `file`（必填）—— PDF 文件。
+- **Response** (`JobDetailResponse`):
+  - `card` —— 最新岗位卡片快照。
+  - `source` —— 创建来源（目前固定 `AI_IMPORT`）。
+  - `document` —— 解析详情（`JobDocumentResponse`），含原文件名、AI 提取的标题/地点/发布人、置信度、原始 JSON/错误信息。
+- **失败处理**：
+  - 文件为空或读取异常返回 400。
+  - AI 解析失败时 `status` 会标记为 `PARSE_FAILED`，`document.aiRawResult` 返回错误信息，前端可提示用户转入手动编辑流程。【F:src/main/java/com/example/grpcdemo/service/CompanyJobService.java†L75-L143】
+- **AI 服务**：默认实现使用 `RestJobDescriptionParser` 调用外部 AI（POST `/jobs:parse`），测试环境自动切换为 `StubJobDescriptionParser`，无需真实服务即可自测。【F:src/main/java/com/example/grpcdemo/service/RestJobDescriptionParser.java†L16-L71】【F:src/main/java/com/example/grpcdemo/service/StubJobDescriptionParser.java†L12-L28】
+
+### 4. 查看岗位详情
+- **Endpoint**：`GET /api/enterprise/jobs/{positionId}`
+- **Response**：`JobDetailResponse`，结构同上，便于在编辑页面回填解析信息。
+
+### 5. 编辑岗位卡片
+- **Endpoint**：`PATCH /api/enterprise/jobs/{positionId}`
+- **Request body** (`JobUpdateRequest`):
+  - `positionName`（可选）—— 岗位名称，若提供则不能为空字符串。
+  - `positionLocation`（可选）—— 工作地点，允许置空。
+  - `publisherNickname`（可选）—— 发布人昵称，允许置空。
+  - `status`（可选）—— `RecruitingPositionStatus` 枚举之一（`READY`、`PUBLISHED`、`CLOSED` 等）。
+- **Response**：更新后的 `JobDetailResponse`。若仅传空值、不造成任何变化，后端会返回当前数据库快照。
+- **行为说明**：字段发生变化时会自动把岗位状态更新为 `READY` 并刷新 `updatedAt`，岗位卡列表可直接使用响应中的 `card` 回填 UI。【F:src/main/java/com/example/grpcdemo/service/CompanyJobService.java†L145-L205】
+
 ## Enterprise onboarding（企业注册资料引导）
 
 企业端完成邮箱注册并首次登录后，需要在浏览器里按四个步骤补全企业资料。所有接口都由
