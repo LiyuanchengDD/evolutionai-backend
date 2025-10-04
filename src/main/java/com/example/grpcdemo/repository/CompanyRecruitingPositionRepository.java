@@ -14,6 +14,9 @@ public interface CompanyRecruitingPositionRepository extends JpaRepository<Compa
 
     List<CompanyRecruitingPositionEntity> findByCompanyIdOrderByUpdatedAtDesc(String companyId);
 
+    List<CompanyRecruitingPositionEntity> findByCompanyIdAndPositionNameContainingIgnoreCaseOrderByUpdatedAtDesc(
+            String companyId, String keyword);
+
     long countByCompanyId(String companyId);
 }
 

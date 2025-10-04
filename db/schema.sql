@@ -198,6 +198,56 @@ CREATE UNIQUE INDEX IF NOT EXISTS invitation_templates_company_default_uidx
     ON public.invitation_templates (company_id)
     WHERE is_default;
 
+CREATE TABLE IF NOT EXISTS public.job_candidates (
+    job_candidate_id uuid PRIMARY KEY,
+    position_id      uuid        NOT NULL REFERENCES public.company_recruiting_positions (position_id) ON DELETE CASCADE,
+    candidate_name   varchar(255),
+    candidate_email  varchar(255),
+    candidate_phone  varchar(64),
+    invite_status    varchar(32)  NOT NULL,
+    interview_status varchar(32)  NOT NULL,
+    resume_id        uuid,
+    uploader_user_id uuid,
+    created_at       timestamptz  NOT NULL DEFAULT now(),
+    updated_at       timestamptz  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS job_candidates_position_id_idx
+    ON public.job_candidates (position_id);
+
+DROP TRIGGER IF EXISTS set_job_candidates_updated_at
+    ON public.job_candidates;
+CREATE TRIGGER set_job_candidates_updated_at
+    BEFORE UPDATE ON public.job_candidates
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TABLE IF NOT EXISTS public.job_candidate_resumes (
+    resume_id       uuid PRIMARY KEY,
+    job_candidate_id uuid       NOT NULL REFERENCES public.job_candidates (job_candidate_id) ON DELETE CASCADE,
+    file_name       varchar(255),
+    file_type       varchar(100),
+    file_content    bytea,
+    parsed_name     varchar(255),
+    parsed_email    varchar(255),
+    parsed_phone    varchar(64),
+    parsed_html     text,
+    confidence      numeric(5, 2),
+    ai_raw_result   text,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS job_candidate_resumes_candidate_uidx
+    ON public.job_candidate_resumes (job_candidate_id);
+
+DROP TRIGGER IF EXISTS set_job_candidate_resumes_updated_at
+    ON public.job_candidate_resumes;
+CREATE TRIGGER set_job_candidate_resumes_updated_at
+    BEFORE UPDATE ON public.job_candidate_resumes
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
 CREATE TABLE IF NOT EXISTS public.enterprise_onboarding_sessions (
     user_id       uuid PRIMARY KEY,
     current_step  integer      NOT NULL,
