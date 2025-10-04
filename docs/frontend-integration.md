@@ -224,6 +224,23 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 - **Response**：更新后的 `JobDetailResponse`。若仅传空值、不造成任何变化，后端会返回当前数据库快照。
 - **行为说明**：字段发生变化时会自动把岗位状态更新为 `READY` 并刷新 `updatedAt`，岗位卡列表可直接使用响应中的 `card` 回填 UI。【F:src/main/java/com/example/grpcdemo/service/CompanyJobService.java†L145-L205】
 
+### 6. 岗位候选人批量导入与管理
+- **批量上传**：`POST /api/enterprise/jobs/{positionId}/candidates/import`
+  - `multipart/form-data`，参数：`uploaderUserId`（必填）+ `files[]`（必填，支持多份简历）。
+  - 后端逐份调用 AI 简历解析服务（生产：`RestResumeParser` → `POST /resumes:parse`，测试：`StubResumeParser` 直接从文件名生成占位数据）。
+  - 返回 `JobCandidateImportResponse`，包含导入成功的候选人条目及当前岗位的状态统计。
+  - 若未解析出邮箱，`inviteStatus=EMAIL_MISSING`，前端需提示补录；解析失败时 `importedCandidates[].resumeAvailable=true` 但 `summary.emailMissing` 会计数。【F:src/main/java/com/example/grpcdemo/controller/CompanyJobCandidateController.java†L20-L40】【F:src/main/java/com/example/grpcdemo/service/CompanyJobCandidateService.java†L60-L137】【F:src/main/java/com/example/grpcdemo/service/RestResumeParser.java†L16-L71】【F:src/main/java/com/example/grpcdemo/service/StubResumeParser.java†L13-L29】
+- **岗位内检索**：`GET /api/enterprise/jobs/{positionId}/candidates?keyword=xxx`
+  - `keyword` 同时匹配姓名/邮箱/电话，若不传则返回按导入时间倒序的全量列表。
+  - 响应 `JobCandidateListResponse`，附带 `summary`（待邀约、已邀约、邮箱缺失、面试状态等聚合）。【F:src/main/java/com/example/grpcdemo/service/CompanyJobCandidateService.java†L139-L166】
+- **候选人详情**：`GET /api/enterprise/job-candidates/{jobCandidateId}/resume`
+  - 返回 `JobCandidateResumeResponse`，包含基础信息、AI 解析出的 HTML 片段以及原始简历的 `<iframe>` HTML，可直接嵌入预览区。【F:src/main/java/com/example/grpcdemo/service/CompanyJobCandidateService.java†L168-L202】【F:src/main/java/com/example/grpcdemo/controller/JobCandidateController.java†L24-L28】
+- **人工补录/更新**：`PATCH /api/enterprise/job-candidates/{jobCandidateId}`
+  - 支持修改姓名、邮箱、电话、邀约状态、面试状态，以及可编辑的 `resumeHtml`。邮箱被清空会自动回退到 `EMAIL_MISSING`，补齐邮箱后默认切换为 `INVITE_PENDING`。【F:src/main/java/com/example/grpcdemo/service/CompanyJobCandidateService.java†L204-L236】
+- **发送邀约邮件**：`POST /api/enterprise/job-candidates/{jobCandidateId}/invite`
+  - 请求体可选 `templateId`（覆盖默认模版）与 `cc[]`。后端读取企业默认邀约模版，使用 `JavaMailSender` 发送成功后把状态更新为 `INVITE_SENT`，发送失败会回写 `INVITE_FAILED` 并返回 500。【F:src/main/java/com/example/grpcdemo/service/CompanyJobCandidateService.java†L238-L275】【F:src/main/java/com/example/grpcdemo/controller/JobCandidateController.java†L30-L39】
+- **岗位搜索增强**：岗位列表接口新增 `keyword` 参数，可在后端按岗位名称模糊查询，未命中时仍返回原本的倒序列表，供“搜索岗位名称”输入框复用。【F:src/main/java/com/example/grpcdemo/controller/CompanyJobController.java†L38-L43】【F:src/main/java/com/example/grpcdemo/service/CompanyJobService.java†L59-L73】
+
 ## Enterprise onboarding（企业注册资料引导）
 
 企业端完成邮箱注册并首次登录后，需要在浏览器里按四个步骤补全企业资料。所有接口都由

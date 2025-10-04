@@ -44,8 +44,9 @@ public class CompanyJobController {
 
     @GetMapping
     public List<JobCardResponse> list(@RequestParam(value = "companyId", required = false) String companyId,
-                                      @RequestParam(value = "userId", required = false) String userId) {
-        return companyJobService.listCards(companyId, userId);
+                                      @RequestParam(value = "userId", required = false) String userId,
+                                      @RequestParam(value = "keyword", required = false) String keyword) {
+        return companyJobService.listCards(companyId, userId, keyword);
     }
 
     @GetMapping("/{positionId}")

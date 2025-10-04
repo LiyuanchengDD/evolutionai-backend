@@ -26,3 +26,5 @@ ai:
     base-url: http://localhost:8085
   job-parser:
     base-url: http://localhost:8090
+  resume-parser:
+    base-url: http://localhost:8091

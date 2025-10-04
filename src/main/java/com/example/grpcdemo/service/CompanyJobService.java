@@ -62,9 +62,16 @@ public class CompanyJobService {
     }
 
     @Transactional(readOnly = true)
-    public List<JobCardResponse> listCards(String companyId, String userId) {
+    public List<JobCardResponse> listCards(String companyId, String userId, String keyword) {
         String resolvedCompanyId = resolveCompanyId(companyId, userId);
-        return recruitingPositionRepository.findByCompanyIdOrderByUpdatedAtDesc(resolvedCompanyId).stream()
+        List<CompanyRecruitingPositionEntity> positions;
+        if (StringUtils.hasText(keyword)) {
+            positions = recruitingPositionRepository
+                    .findByCompanyIdAndPositionNameContainingIgnoreCaseOrderByUpdatedAtDesc(resolvedCompanyId, keyword.trim());
+        } else {
+            positions = recruitingPositionRepository.findByCompanyIdOrderByUpdatedAtDesc(resolvedCompanyId);
+        }
+        return positions.stream()
                 .map(this::toCard)
                 .toList();
     }
