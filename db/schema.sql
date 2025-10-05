@@ -11,6 +11,15 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS citext;
 
+-- Helper trigger function for automatically updating `updated_at` columns.
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS trigger AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ============================================================================
 --  User accounts & authentication
 -- ============================================================================
@@ -55,14 +64,6 @@ CREATE TRIGGER set_auth_verification_codes_updated_at
     BEFORE UPDATE ON public.auth_verification_codes
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
-
-CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS trigger AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS set_user_accounts_updated_at
     ON public.user_accounts;
