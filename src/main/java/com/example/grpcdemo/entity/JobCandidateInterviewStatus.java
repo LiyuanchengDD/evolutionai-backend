@@ -12,6 +12,10 @@ public enum JobCandidateInterviewStatus {
     IN_PROGRESS,
     /** 面试已完成。 */
     COMPLETED,
-    /** 面试已取消或候选人放弃。 */
-    CANCELLED
+    /** 面试已取消或企业手动撤销。 */
+    CANCELLED,
+    /** 候选人主动放弃面试。 */
+    ABANDONED,
+    /** 邀约超时，候选人未在限定时间内响应。 */
+    TIMED_OUT
 }

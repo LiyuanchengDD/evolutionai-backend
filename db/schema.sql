@@ -208,6 +208,12 @@ CREATE TABLE IF NOT EXISTS public.job_candidates (
     invite_status    varchar(32)  NOT NULL,
     interview_status varchar(32)  NOT NULL,
     resume_id        uuid,
+    interview_record_id uuid,
+    ai_evaluation_id    uuid,
+    last_invite_sent_at timestamptz,
+    interview_deadline_at timestamptz,
+    candidate_response_at timestamptz,
+    interview_completed_at timestamptz,
     uploader_user_id uuid,
     created_at       timestamptz  NOT NULL DEFAULT now(),
     updated_at       timestamptz  NOT NULL DEFAULT now()
@@ -246,6 +252,61 @@ DROP TRIGGER IF EXISTS set_job_candidate_resumes_updated_at
     ON public.job_candidate_resumes;
 CREATE TRIGGER set_job_candidate_resumes_updated_at
     BEFORE UPDATE ON public.job_candidate_resumes
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TABLE IF NOT EXISTS public.candidate_interview_records (
+    record_id             uuid PRIMARY KEY,
+    job_candidate_id      uuid        NOT NULL REFERENCES public.job_candidates (job_candidate_id) ON DELETE CASCADE,
+    interview_mode        varchar(32),
+    interviewer_name      varchar(255),
+    ai_session_id         varchar(64),
+    interview_started_at  timestamptz,
+    interview_ended_at    timestamptz,
+    duration_seconds      integer,
+    questions_json        text,
+    transcript_json       text,
+    metadata_json         text,
+    created_at            timestamptz NOT NULL DEFAULT now(),
+    updated_at            timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS candidate_interview_records_candidate_idx
+    ON public.candidate_interview_records (job_candidate_id);
+
+DROP TRIGGER IF EXISTS set_candidate_interview_records_updated_at
+    ON public.candidate_interview_records;
+CREATE TRIGGER set_candidate_interview_records_updated_at
+    BEFORE UPDATE ON public.candidate_interview_records
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TABLE IF NOT EXISTS public.candidate_ai_evaluations (
+    evaluation_id         uuid PRIMARY KEY,
+    job_candidate_id      uuid        NOT NULL REFERENCES public.job_candidates (job_candidate_id) ON DELETE CASCADE,
+    interview_record_id   uuid,
+    ai_model_version      varchar(64),
+    overall_score         numeric(5, 2),
+    score_level           varchar(32),
+    strengths_json        text,
+    weaknesses_json       text,
+    risk_alerts_json      text,
+    recommendations_json  text,
+    competency_scores_json text,
+    custom_metrics_json   text,
+    raw_payload           text,
+    evaluated_at          timestamptz,
+    created_at            timestamptz NOT NULL DEFAULT now(),
+    updated_at            timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS candidate_ai_evaluations_candidate_idx
+    ON public.candidate_ai_evaluations (job_candidate_id);
+
+DROP TRIGGER IF EXISTS set_candidate_ai_evaluations_updated_at
+    ON public.candidate_ai_evaluations;
+CREATE TRIGGER set_candidate_ai_evaluations_updated_at
+    BEFORE UPDATE ON public.candidate_ai_evaluations
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 

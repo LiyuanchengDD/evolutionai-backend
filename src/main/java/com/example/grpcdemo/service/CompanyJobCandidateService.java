@@ -1,5 +1,10 @@
 package com.example.grpcdemo.service;
 
+import com.example.grpcdemo.controller.dto.CandidateAiEvaluationRequest;
+import com.example.grpcdemo.controller.dto.CandidateAiEvaluationResponse;
+import com.example.grpcdemo.controller.dto.CandidateInterviewQuestionDto;
+import com.example.grpcdemo.controller.dto.CandidateInterviewRecordRequest;
+import com.example.grpcdemo.controller.dto.CandidateInterviewRecordResponse;
 import com.example.grpcdemo.controller.dto.JobCandidateImportResponse;
 import com.example.grpcdemo.controller.dto.JobCandidateInviteRequest;
 import com.example.grpcdemo.controller.dto.JobCandidateItemResponse;
@@ -13,10 +18,14 @@ import com.example.grpcdemo.entity.InvitationTemplateEntity;
 import com.example.grpcdemo.entity.JobCandidateInterviewStatus;
 import com.example.grpcdemo.entity.JobCandidateInviteStatus;
 import com.example.grpcdemo.entity.JobCandidateResumeEntity;
+import com.example.grpcdemo.entity.CandidateAiEvaluationEntity;
+import com.example.grpcdemo.entity.CandidateInterviewRecordEntity;
 import com.example.grpcdemo.repository.CompanyJobCandidateRepository;
 import com.example.grpcdemo.repository.CompanyRecruitingPositionRepository;
 import com.example.grpcdemo.repository.InvitationTemplateRepository;
 import com.example.grpcdemo.repository.JobCandidateResumeRepository;
+import com.example.grpcdemo.repository.CandidateAiEvaluationRepository;
+import com.example.grpcdemo.repository.CandidateInterviewRecordRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -31,12 +40,21 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 企业岗位候选人相关业务逻辑。
@@ -46,25 +64,47 @@ public class CompanyJobCandidateService {
 
     private static final Logger log = LoggerFactory.getLogger(CompanyJobCandidateService.class);
 
+    private static final TypeReference<List<CandidateInterviewQuestionDto>> QUESTION_LIST_TYPE =
+            new TypeReference<>() {
+            };
+    private static final TypeReference<List<String>> STRING_LIST_TYPE =
+            new TypeReference<>() {
+            };
+    private static final TypeReference<Map<String, BigDecimal>> COMPETENCY_SCORE_TYPE =
+            new TypeReference<>() {
+            };
+    private static final TypeReference<Map<String, Object>> GENERIC_MAP_TYPE =
+            new TypeReference<>() {
+            };
+
     private final CompanyRecruitingPositionRepository positionRepository;
     private final CompanyJobCandidateRepository candidateRepository;
     private final JobCandidateResumeRepository resumeRepository;
     private final InvitationTemplateRepository invitationTemplateRepository;
+    private final CandidateInterviewRecordRepository interviewRecordRepository;
+    private final CandidateAiEvaluationRepository aiEvaluationRepository;
     private final ResumeParser resumeParser;
     private final JavaMailSender mailSender;
+    private final ObjectMapper objectMapper;
 
     public CompanyJobCandidateService(CompanyRecruitingPositionRepository positionRepository,
                                       CompanyJobCandidateRepository candidateRepository,
                                       JobCandidateResumeRepository resumeRepository,
                                       InvitationTemplateRepository invitationTemplateRepository,
+                                      CandidateInterviewRecordRepository interviewRecordRepository,
+                                      CandidateAiEvaluationRepository aiEvaluationRepository,
                                       ResumeParser resumeParser,
-                                      JavaMailSender mailSender) {
+                                      JavaMailSender mailSender,
+                                      ObjectMapper objectMapper) {
         this.positionRepository = positionRepository;
         this.candidateRepository = candidateRepository;
         this.resumeRepository = resumeRepository;
         this.invitationTemplateRepository = invitationTemplateRepository;
+        this.interviewRecordRepository = interviewRecordRepository;
+        this.aiEvaluationRepository = aiEvaluationRepository;
         this.resumeParser = resumeParser;
         this.mailSender = mailSender;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -183,6 +223,7 @@ public class CompanyJobCandidateService {
     public JobCandidateResumeResponse getResume(String jobCandidateId) {
         CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        candidate = refreshInterviewTimeoutIfNeeded(candidate);
         JobCandidateResumeResponse response = new JobCandidateResumeResponse();
         response.setJobCandidateId(candidate.getJobCandidateId());
         response.setPositionId(candidate.getPositionId());
@@ -191,6 +232,10 @@ public class CompanyJobCandidateService {
         response.setPhone(candidate.getCandidatePhone());
         response.setInviteStatus(candidate.getInviteStatus());
         response.setInterviewStatus(candidate.getInterviewStatus());
+        response.setInterviewRecordAvailable(StringUtils.hasText(candidate.getInterviewRecordId()));
+        response.setAiEvaluationAvailable(StringUtils.hasText(candidate.getAiEvaluationId()));
+        response.setInterviewCompletedAt(candidate.getInterviewCompletedAt());
+        response.setInterviewDeadlineAt(candidate.getInterviewDeadlineAt());
 
         if (StringUtils.hasText(candidate.getResumeId())) {
             Optional<JobCandidateResumeEntity> resumeOpt = resumeRepository.findById(candidate.getResumeId());
@@ -235,6 +280,15 @@ public class CompanyJobCandidateService {
         }
         if (request.getInterviewStatus() != null) {
             candidate.setInterviewStatus(request.getInterviewStatus());
+            if (request.getInterviewStatus() == JobCandidateInterviewStatus.ABANDONED) {
+                candidate.setCandidateResponseAt(Instant.now());
+            } else if (request.getInterviewStatus() == JobCandidateInterviewStatus.COMPLETED
+                    && candidate.getInterviewCompletedAt() == null) {
+                candidate.setInterviewCompletedAt(Instant.now());
+            } else if (request.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT
+                    && candidate.getInterviewDeadlineAt() == null) {
+                candidate.setInterviewDeadlineAt(Instant.now());
+            }
             changed = true;
         }
         if (changed) {
@@ -279,7 +333,11 @@ public class CompanyJobCandidateService {
             }
             mailSender.send(message);
             candidate.setInviteStatus(JobCandidateInviteStatus.INVITE_SENT);
-            candidate.setUpdatedAt(Instant.now());
+            Instant now = Instant.now();
+            candidate.setLastInviteSentAt(now);
+            candidate.setInterviewDeadlineAt(now.plus(15, ChronoUnit.DAYS));
+            candidate.setCandidateResponseAt(null);
+            candidate.setUpdatedAt(now);
             candidateRepository.save(candidate);
             return toItemResponse(candidate);
         } catch (MailException e) {
@@ -289,6 +347,262 @@ public class CompanyJobCandidateService {
             log.error("发送邀约邮件失败: {}", e.getMessage(), e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "发送邀约邮件失败", e);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public CandidateInterviewRecordResponse getInterviewRecord(String jobCandidateId) {
+        candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        CandidateInterviewRecordEntity record = interviewRecordRepository
+                .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到面试记录"));
+        return toInterviewRecordResponse(record);
+    }
+
+    @Transactional
+    public CandidateInterviewRecordResponse upsertInterviewRecord(String jobCandidateId,
+                                                                  CandidateInterviewRecordRequest request) {
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        CandidateInterviewRecordEntity entity = interviewRecordRepository
+                .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
+                .orElse(null);
+        if (entity == null) {
+            entity = new CandidateInterviewRecordEntity();
+            entity.setRecordId(resolveRecordId(request != null ? request.getInterviewRecordId() : null));
+            entity.setJobCandidateId(jobCandidateId);
+        } else if (request != null && StringUtils.hasText(request.getInterviewRecordId())
+                && !request.getInterviewRecordId().equals(entity.getRecordId())) {
+            entity.setRecordId(request.getInterviewRecordId());
+        }
+        if (request != null) {
+            entity.setAiSessionId(request.getAiSessionId());
+            entity.setInterviewMode(request.getInterviewMode());
+            entity.setInterviewerName(request.getInterviewerName());
+            entity.setInterviewStartedAt(request.getInterviewStartedAt());
+            entity.setInterviewEndedAt(request.getInterviewEndedAt());
+            Integer duration = request.getDurationSeconds();
+            if (duration == null && request.getInterviewStartedAt() != null && request.getInterviewEndedAt() != null) {
+                duration = Math.toIntExact(ChronoUnit.SECONDS.between(request.getInterviewStartedAt(),
+                        request.getInterviewEndedAt()));
+            }
+            entity.setDurationSeconds(duration);
+            entity.setQuestionsJson(writeJson(request.getQuestions(), "序列化面试题目失败"));
+            entity.setTranscriptJson(request.getTranscriptRaw());
+            entity.setMetadataJson(writeJson(request.getMetadata(), "序列化面试元数据失败"));
+        }
+        CandidateInterviewRecordEntity saved = interviewRecordRepository.save(entity);
+
+        candidate.setInterviewRecordId(saved.getRecordId());
+        if (saved.getInterviewEndedAt() != null) {
+            candidate.setInterviewCompletedAt(saved.getInterviewEndedAt());
+        } else if (candidate.getInterviewCompletedAt() == null) {
+            candidate.setInterviewCompletedAt(saved.getUpdatedAt());
+        }
+        if (candidate.getInterviewStatus() != JobCandidateInterviewStatus.ABANDONED
+                && candidate.getInterviewStatus() != JobCandidateInterviewStatus.CANCELLED
+                && candidate.getInterviewStatus() != JobCandidateInterviewStatus.TIMED_OUT) {
+            candidate.setInterviewStatus(JobCandidateInterviewStatus.COMPLETED);
+        }
+        candidate.setUpdatedAt(Instant.now());
+        candidateRepository.save(candidate);
+
+        return toInterviewRecordResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public CandidateAiEvaluationResponse getAiEvaluation(String jobCandidateId) {
+        candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        CandidateAiEvaluationEntity evaluation = aiEvaluationRepository
+                .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到 AI 评估报告"));
+        return toAiEvaluationResponse(evaluation);
+    }
+
+    @Transactional
+    public CandidateAiEvaluationResponse upsertAiEvaluation(String jobCandidateId,
+                                                            CandidateAiEvaluationRequest request) {
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        CandidateAiEvaluationEntity entity = aiEvaluationRepository
+                .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
+                .orElse(null);
+        if (entity == null) {
+            entity = new CandidateAiEvaluationEntity();
+            entity.setEvaluationId(resolveEvaluationId(request != null ? request.getEvaluationId() : null));
+            entity.setJobCandidateId(jobCandidateId);
+        } else if (request != null && StringUtils.hasText(request.getEvaluationId())
+                && !request.getEvaluationId().equals(entity.getEvaluationId())) {
+            entity.setEvaluationId(request.getEvaluationId());
+        }
+        if (request != null) {
+            entity.setInterviewRecordId(resolveInterviewRecordId(candidate, request.getInterviewRecordId()));
+            entity.setOverallScore(request.getOverallScore());
+            entity.setScoreLevel(request.getScoreLevel());
+            entity.setStrengthsJson(writeJson(request.getStrengths(), "序列化优点失败"));
+            entity.setWeaknessesJson(writeJson(request.getWeaknesses(), "序列化待改进项失败"));
+            entity.setRiskAlertsJson(writeJson(request.getRiskAlerts(), "序列化风险提示失败"));
+            entity.setRecommendationsJson(writeJson(request.getRecommendations(), "序列化建议失败"));
+            entity.setCompetencyScoresJson(writeJson(request.getCompetencyScores(), "序列化能力评分失败"));
+            entity.setCustomMetricsJson(writeJson(request.getCustomMetrics(), "序列化扩展指标失败"));
+            entity.setAiModelVersion(request.getAiModelVersion());
+            entity.setEvaluatedAt(request.getEvaluatedAt() != null ? request.getEvaluatedAt() : Instant.now());
+            entity.setRawPayload(request.getRawPayload());
+        }
+        CandidateAiEvaluationEntity saved = aiEvaluationRepository.save(entity);
+
+        candidate.setAiEvaluationId(saved.getEvaluationId());
+        if (saved.getEvaluatedAt() != null) {
+            candidate.setInterviewCompletedAt(saved.getEvaluatedAt());
+        } else if (candidate.getInterviewCompletedAt() == null) {
+            candidate.setInterviewCompletedAt(saved.getUpdatedAt());
+        }
+        if (candidate.getInterviewStatus() != JobCandidateInterviewStatus.ABANDONED
+                && candidate.getInterviewStatus() != JobCandidateInterviewStatus.CANCELLED
+                && candidate.getInterviewStatus() != JobCandidateInterviewStatus.TIMED_OUT) {
+            candidate.setInterviewStatus(JobCandidateInterviewStatus.COMPLETED);
+        }
+        candidate.setUpdatedAt(Instant.now());
+        candidateRepository.save(candidate);
+
+        return toAiEvaluationResponse(saved);
+    }
+
+    private CandidateInterviewRecordResponse toInterviewRecordResponse(CandidateInterviewRecordEntity entity) {
+        CandidateInterviewRecordResponse response = new CandidateInterviewRecordResponse();
+        response.setInterviewRecordId(entity.getRecordId());
+        response.setJobCandidateId(entity.getJobCandidateId());
+        response.setInterviewMode(entity.getInterviewMode());
+        response.setInterviewerName(entity.getInterviewerName());
+        response.setAiSessionId(entity.getAiSessionId());
+        response.setInterviewStartedAt(entity.getInterviewStartedAt());
+        response.setInterviewEndedAt(entity.getInterviewEndedAt());
+        response.setDurationSeconds(entity.getDurationSeconds());
+        response.setQuestions(readQuestionList(entity.getQuestionsJson()));
+        response.setTranscriptRaw(entity.getTranscriptJson());
+        response.setMetadata(readGenericMap(entity.getMetadataJson()));
+        response.setCreatedAt(entity.getCreatedAt());
+        response.setUpdatedAt(entity.getUpdatedAt());
+        return response;
+    }
+
+    private CandidateAiEvaluationResponse toAiEvaluationResponse(CandidateAiEvaluationEntity entity) {
+        CandidateAiEvaluationResponse response = new CandidateAiEvaluationResponse();
+        response.setEvaluationId(entity.getEvaluationId());
+        response.setJobCandidateId(entity.getJobCandidateId());
+        response.setInterviewRecordId(entity.getInterviewRecordId());
+        response.setOverallScore(entity.getOverallScore());
+        response.setScoreLevel(entity.getScoreLevel());
+        response.setStrengths(readStringList(entity.getStrengthsJson()));
+        response.setWeaknesses(readStringList(entity.getWeaknessesJson()));
+        response.setRiskAlerts(readStringList(entity.getRiskAlertsJson()));
+        response.setRecommendations(readStringList(entity.getRecommendationsJson()));
+        response.setCompetencyScores(readCompetencyScores(entity.getCompetencyScoresJson()));
+        response.setCustomMetrics(readGenericMap(entity.getCustomMetricsJson()));
+        response.setAiModelVersion(entity.getAiModelVersion());
+        response.setEvaluatedAt(entity.getEvaluatedAt());
+        response.setRawPayload(entity.getRawPayload());
+        response.setCreatedAt(entity.getCreatedAt());
+        response.setUpdatedAt(entity.getUpdatedAt());
+        return response;
+    }
+
+    private String resolveRecordId(String requestedId) {
+        if (StringUtils.hasText(requestedId)) {
+            return requestedId;
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    private String resolveEvaluationId(String requestedId) {
+        if (StringUtils.hasText(requestedId)) {
+            return requestedId;
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    private String resolveInterviewRecordId(CompanyJobCandidateEntity candidate, String requestedId) {
+        if (StringUtils.hasText(requestedId)) {
+            return requestedId;
+        }
+        return candidate.getInterviewRecordId();
+    }
+
+    private List<CandidateInterviewQuestionDto> readQuestionList(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(json, QUESTION_LIST_TYPE);
+        } catch (JsonProcessingException e) {
+            log.error("反序列化面试题目失败: {}", e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    private List<String> readStringList(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(json, STRING_LIST_TYPE);
+        } catch (JsonProcessingException e) {
+            log.error("反序列化字符串列表失败: {}", e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    private Map<String, BigDecimal> readCompetencyScores(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Collections.emptyMap();
+        }
+        try {
+            return objectMapper.readValue(json, COMPETENCY_SCORE_TYPE);
+        } catch (JsonProcessingException e) {
+            log.error("反序列化能力评分失败: {}", e.getMessage(), e);
+            return Collections.emptyMap();
+        }
+    }
+
+    private Map<String, Object> readGenericMap(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Collections.emptyMap();
+        }
+        try {
+            return objectMapper.readValue(json, GENERIC_MAP_TYPE);
+        } catch (JsonProcessingException e) {
+            log.error("反序列化元数据失败: {}", e.getMessage(), e);
+            return Collections.emptyMap();
+        }
+    }
+
+    private String writeJson(Object value, String errorMessage) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            log.error("{}: {}", errorMessage, e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, errorMessage, e);
+        }
+    }
+
+    private CompanyJobCandidateEntity refreshInterviewTimeoutIfNeeded(CompanyJobCandidateEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        if (entity.getInviteStatus() == JobCandidateInviteStatus.INVITE_SENT
+                && (entity.getInterviewStatus() == JobCandidateInterviewStatus.NOT_INTERVIEWED
+                || entity.getInterviewStatus() == JobCandidateInterviewStatus.SCHEDULED)
+                && entity.getInterviewDeadlineAt() != null
+                && Instant.now().isAfter(entity.getInterviewDeadlineAt())) {
+            entity.setInterviewStatus(JobCandidateInterviewStatus.TIMED_OUT);
+            entity.setUpdatedAt(Instant.now());
+            return candidateRepository.save(entity);
+        }
+        return entity;
     }
 
     private InvitationTemplateEntity resolveTemplate(String companyId, JobCandidateInviteRequest request) {
@@ -320,24 +634,33 @@ public class CompanyJobCandidateService {
         summary.setInterviewInProgress(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.IN_PROGRESS));
         summary.setInterviewCompleted(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.COMPLETED));
         summary.setInterviewCancelled(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.CANCELLED));
+        summary.setInterviewAbandoned(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.ABANDONED));
+        summary.setInterviewTimedOut(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.TIMED_OUT));
         return summary;
     }
 
     private JobCandidateItemResponse toItemResponse(CompanyJobCandidateEntity entity) {
-        boolean emailMissing = entity.getInviteStatus() == JobCandidateInviteStatus.EMAIL_MISSING
-                || !StringUtils.hasText(entity.getCandidateEmail());
-        boolean resumeAvailable = StringUtils.hasText(entity.getResumeId());
-        return new JobCandidateItemResponse(entity.getJobCandidateId(),
-                entity.getPositionId(),
-                entity.getCandidateName(),
-                entity.getCandidateEmail(),
-                entity.getCandidatePhone(),
-                entity.getInviteStatus(),
-                entity.getInterviewStatus(),
+        CompanyJobCandidateEntity candidate = refreshInterviewTimeoutIfNeeded(entity);
+        boolean emailMissing = candidate.getInviteStatus() == JobCandidateInviteStatus.EMAIL_MISSING
+                || !StringUtils.hasText(candidate.getCandidateEmail());
+        boolean resumeAvailable = StringUtils.hasText(candidate.getResumeId());
+        boolean interviewRecordAvailable = StringUtils.hasText(candidate.getInterviewRecordId());
+        boolean aiEvaluationAvailable = StringUtils.hasText(candidate.getAiEvaluationId());
+        return new JobCandidateItemResponse(candidate.getJobCandidateId(),
+                candidate.getPositionId(),
+                candidate.getCandidateName(),
+                candidate.getCandidateEmail(),
+                candidate.getCandidatePhone(),
+                candidate.getInviteStatus(),
+                candidate.getInterviewStatus(),
                 emailMissing,
                 resumeAvailable,
-                entity.getCreatedAt(),
-                entity.getUpdatedAt());
+                interviewRecordAvailable,
+                aiEvaluationAvailable,
+                candidate.getInterviewCompletedAt(),
+                candidate.getInterviewDeadlineAt(),
+                candidate.getCreatedAt(),
+                candidate.getUpdatedAt());
     }
 
     private String buildDocumentHtml(byte[] content, String fileType) {

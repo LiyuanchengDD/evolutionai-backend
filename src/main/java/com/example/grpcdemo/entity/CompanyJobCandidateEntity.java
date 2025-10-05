@@ -45,6 +45,24 @@ public class CompanyJobCandidateEntity {
     @Column(name = "resume_id", length = 36)
     private String resumeId;
 
+    @Column(name = "interview_record_id", length = 36)
+    private String interviewRecordId;
+
+    @Column(name = "ai_evaluation_id", length = 36)
+    private String aiEvaluationId;
+
+    @Column(name = "last_invite_sent_at")
+    private Instant lastInviteSentAt;
+
+    @Column(name = "interview_deadline_at")
+    private Instant interviewDeadlineAt;
+
+    @Column(name = "candidate_response_at")
+    private Instant candidateResponseAt;
+
+    @Column(name = "interview_completed_at")
+    private Instant interviewCompletedAt;
+
     @Column(name = "uploader_user_id", length = 36)
     private String uploaderUserId;
 
@@ -69,6 +87,9 @@ public class CompanyJobCandidateEntity {
         if (interviewStatus == null) {
             interviewStatus = JobCandidateInterviewStatus.NOT_INTERVIEWED;
         }
+        if (interviewStatus == JobCandidateInterviewStatus.ABANDONED && candidateResponseAt == null) {
+            candidateResponseAt = now;
+        }
     }
 
     @PreUpdate
@@ -79,6 +100,9 @@ public class CompanyJobCandidateEntity {
         }
         if (interviewStatus == null) {
             interviewStatus = JobCandidateInterviewStatus.NOT_INTERVIEWED;
+        }
+        if (interviewStatus == JobCandidateInterviewStatus.ABANDONED && candidateResponseAt == null) {
+            candidateResponseAt = updatedAt;
         }
     }
 
@@ -144,6 +168,54 @@ public class CompanyJobCandidateEntity {
 
     public void setResumeId(String resumeId) {
         this.resumeId = resumeId;
+    }
+
+    public String getInterviewRecordId() {
+        return interviewRecordId;
+    }
+
+    public void setInterviewRecordId(String interviewRecordId) {
+        this.interviewRecordId = interviewRecordId;
+    }
+
+    public String getAiEvaluationId() {
+        return aiEvaluationId;
+    }
+
+    public void setAiEvaluationId(String aiEvaluationId) {
+        this.aiEvaluationId = aiEvaluationId;
+    }
+
+    public Instant getLastInviteSentAt() {
+        return lastInviteSentAt;
+    }
+
+    public void setLastInviteSentAt(Instant lastInviteSentAt) {
+        this.lastInviteSentAt = lastInviteSentAt;
+    }
+
+    public Instant getInterviewDeadlineAt() {
+        return interviewDeadlineAt;
+    }
+
+    public void setInterviewDeadlineAt(Instant interviewDeadlineAt) {
+        this.interviewDeadlineAt = interviewDeadlineAt;
+    }
+
+    public Instant getCandidateResponseAt() {
+        return candidateResponseAt;
+    }
+
+    public void setCandidateResponseAt(Instant candidateResponseAt) {
+        this.candidateResponseAt = candidateResponseAt;
+    }
+
+    public Instant getInterviewCompletedAt() {
+        return interviewCompletedAt;
+    }
+
+    public void setInterviewCompletedAt(Instant interviewCompletedAt) {
+        this.interviewCompletedAt = interviewCompletedAt;
     }
 
     public String getUploaderUserId() {
