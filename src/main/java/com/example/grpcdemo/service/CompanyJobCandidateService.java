@@ -251,6 +251,24 @@ public class CompanyJobCandidateService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public ResumeFilePayload getResumeFile(String jobCandidateId) {
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        if (!StringUtils.hasText(candidate.getResumeId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人缺少简历文件");
+        }
+        JobCandidateResumeEntity resume = resumeRepository.findById(candidate.getResumeId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人简历不存在"));
+        byte[] content = resume.getFileContent();
+        if (content == null || content.length == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人简历文件不存在");
+        }
+        String fileType = StringUtils.hasText(resume.getFileType()) ? resume.getFileType() : "application/pdf";
+        String fileName = resolveResumeFileName(candidate, resume);
+        return new ResumeFilePayload(fileName, fileType, content);
+    }
+
     @Transactional
     public JobCandidateItemResponse updateCandidate(String jobCandidateId, JobCandidateUpdateRequest request) {
         CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
@@ -673,6 +691,16 @@ public class CompanyJobCandidateService {
                 + "\" style=\"width:100%;height:100%;border:none;\"></iframe>";
     }
 
+    private String resolveResumeFileName(CompanyJobCandidateEntity candidate, JobCandidateResumeEntity resume) {
+        if (StringUtils.hasText(resume.getFileName())) {
+            return resume.getFileName();
+        }
+        if (StringUtils.hasText(candidate.getCandidateName())) {
+            return candidate.getCandidateName().trim() + ".pdf";
+        }
+        return resume.getResumeId() + ".pdf";
+    }
+
     private String deriveNameFromFile(String fileName) {
         if (!StringUtils.hasText(fileName)) {
             return "未命名候选人";
@@ -694,5 +722,8 @@ public class CompanyJobCandidateService {
             return null;
         }
         return value.trim();
+    }
+
+    public record ResumeFilePayload(String fileName, String fileType, byte[] content) {
     }
 }
