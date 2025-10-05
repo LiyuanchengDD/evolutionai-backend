@@ -154,6 +154,8 @@ class EnterpriseOnboardingServiceTest {
         OnboardingStepRecordDto record = state.getRecords().get(0);
         assertEquals(1, record.getStep());
         assertEquals("测试企业", record.getPayload().get("companyName"));
+        assertEquals("中国", record.getPayload().get("countryDisplayName"));
+        assertEquals("北京市", record.getPayload().get("cityDisplayName"));
 
         EnterpriseStep1Request updated = new EnterpriseStep1Request();
         updated.setUserId("user-1");
