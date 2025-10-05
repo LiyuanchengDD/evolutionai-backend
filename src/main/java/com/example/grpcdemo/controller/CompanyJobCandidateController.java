@@ -2,8 +2,11 @@ package com.example.grpcdemo.controller;
 
 import com.example.grpcdemo.controller.dto.JobCandidateImportResponse;
 import com.example.grpcdemo.controller.dto.JobCandidateListResponse;
+import com.example.grpcdemo.controller.dto.JobCandidateListStatus;
 import com.example.grpcdemo.service.CompanyJobCandidateService;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,7 +45,15 @@ public class CompanyJobCandidateController {
 
     @GetMapping("/{positionId}/candidates")
     public JobCandidateListResponse list(@PathVariable("positionId") String positionId,
-                                         @RequestParam(value = "keyword", required = false) String keyword) {
-        return candidateService.listCandidates(positionId, keyword);
+                                         @RequestParam(value = "keyword", required = false) String keyword,
+                                         @RequestParam(value = "status", required = false)
+                                         JobCandidateListStatus status,
+                                         @RequestParam(value = "page", defaultValue = "0") @Min(0) int page,
+                                         @RequestParam(value = "pageSize", defaultValue = "20") @Min(1) @Max(200) int pageSize) {
+        return candidateService.listCandidates(positionId,
+                keyword,
+                status,
+                page,
+                pageSize);
     }
 }

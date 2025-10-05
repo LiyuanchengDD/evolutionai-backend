@@ -9,6 +9,7 @@ import com.example.grpcdemo.controller.dto.JobCandidateImportResponse;
 import com.example.grpcdemo.controller.dto.JobCandidateInviteRequest;
 import com.example.grpcdemo.controller.dto.JobCandidateItemResponse;
 import com.example.grpcdemo.controller.dto.JobCandidateListResponse;
+import com.example.grpcdemo.controller.dto.JobCandidateListStatus;
 import com.example.grpcdemo.controller.dto.JobCandidateResumeResponse;
 import com.example.grpcdemo.controller.dto.JobCandidateStatusSummary;
 import com.example.grpcdemo.controller.dto.JobCandidateUpdateRequest;
@@ -28,6 +29,9 @@ import com.example.grpcdemo.repository.CandidateAiEvaluationRepository;
 import com.example.grpcdemo.repository.CandidateInterviewRecordRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
@@ -48,9 +52,11 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -202,20 +208,39 @@ public class CompanyJobCandidateService {
     }
 
     @Transactional(readOnly = true)
-    public JobCandidateListResponse listCandidates(String positionId, String keyword) {
+    public JobCandidateListResponse listCandidates(String positionId,
+                                                   String keyword,
+                                                   JobCandidateListStatus status,
+                                                   int page,
+                                                   int pageSize) {
         requirePosition(positionId);
-        List<CompanyJobCandidateEntity> entities;
-        if (StringUtils.hasText(keyword)) {
-            entities = candidateRepository.searchByKeyword(positionId, keyword.trim());
-        } else {
-            entities = candidateRepository.findByPositionIdOrderByCreatedAtDesc(positionId);
-        }
-        List<JobCandidateItemResponse> items = entities.stream()
+        int safePage = Math.max(page, 0);
+        int safePageSize = Math.min(Math.max(pageSize, 1), 200);
+        PageRequest pageable = PageRequest.of(safePage, safePageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
+        StatusFilters filters = resolveStatusFilters(status);
+        List<JobCandidateInviteStatus> normalizedInviteStatuses = normalizeFilters(filters.inviteStatuses());
+        List<JobCandidateInterviewStatus> normalizedInterviewStatuses = normalizeFilters(filters.interviewStatuses());
+
+        Page<CompanyJobCandidateEntity> pageResult = candidateRepository.searchByFilters(positionId,
+                normalizedKeyword,
+                normalizedInviteStatuses,
+                normalizedInterviewStatuses,
+                pageable);
+        List<JobCandidateItemResponse> items = pageResult.getContent().stream()
                 .map(this::toItemResponse)
                 .toList();
         JobCandidateListResponse response = new JobCandidateListResponse();
         response.setCandidates(items);
         response.setSummary(buildSummary(positionId));
+        response.setPage(pageResult.getNumber());
+        response.setPageSize(pageResult.getSize());
+        response.setTotal(pageResult.getTotalElements());
+        response.setHasMore(pageResult.hasNext());
+        if (pageResult.hasNext()) {
+            response.setNextPage(pageResult.getNumber() + 1);
+        }
         return response;
     }
 
@@ -641,20 +666,81 @@ public class CompanyJobCandidateService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "岗位不存在"));
     }
 
+    private <T> List<T> normalizeFilters(List<T> values) {
+        if (values == null) {
+            return null;
+        }
+        List<T> filtered = values.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        return filtered.isEmpty() ? null : filtered;
+    }
+
+    private StatusFilters resolveStatusFilters(JobCandidateListStatus status) {
+        JobCandidateListStatus effective = status != null ? status : JobCandidateListStatus.ALL;
+        return switch (effective) {
+            case WAITING_INVITE -> new StatusFilters(List.of(
+                    JobCandidateInviteStatus.INVITE_PENDING,
+                    JobCandidateInviteStatus.EMAIL_MISSING,
+                    JobCandidateInviteStatus.INVITE_FAILED
+            ), null);
+            case NOT_INTERVIEWED -> new StatusFilters(null, List.of(
+                    JobCandidateInterviewStatus.NOT_INTERVIEWED,
+                    JobCandidateInterviewStatus.SCHEDULED,
+                    JobCandidateInterviewStatus.IN_PROGRESS
+            ));
+            case INTERVIEWED -> new StatusFilters(null, List.of(JobCandidateInterviewStatus.COMPLETED));
+            case DROPPED -> new StatusFilters(null, List.of(
+                    JobCandidateInterviewStatus.CANCELLED,
+                    JobCandidateInterviewStatus.ABANDONED,
+                    JobCandidateInterviewStatus.TIMED_OUT
+            ));
+            case ALL -> new StatusFilters(null, null);
+        };
+    }
+
     private JobCandidateStatusSummary buildSummary(String positionId) {
         JobCandidateStatusSummary summary = new JobCandidateStatusSummary();
-        summary.setInvitePending(candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.INVITE_PENDING));
-        summary.setInviteSent(candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.INVITE_SENT));
-        summary.setInviteFailed(candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.INVITE_FAILED));
-        summary.setEmailMissing(candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.EMAIL_MISSING));
-        summary.setInterviewNotStarted(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.NOT_INTERVIEWED));
-        summary.setInterviewScheduled(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.SCHEDULED));
-        summary.setInterviewInProgress(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.IN_PROGRESS));
-        summary.setInterviewCompleted(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.COMPLETED));
-        summary.setInterviewCancelled(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.CANCELLED));
-        summary.setInterviewAbandoned(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.ABANDONED));
-        summary.setInterviewTimedOut(candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.TIMED_OUT));
+        long waitingInvite = candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.INVITE_PENDING)
+                + candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.EMAIL_MISSING)
+                + candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.INVITE_FAILED);
+        summary.setWaitingInvite(waitingInvite);
+
+        long notInterviewed = candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.NOT_INTERVIEWED)
+                + candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.SCHEDULED)
+                + candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.IN_PROGRESS);
+        summary.setNotInterviewed(notInterviewed);
+
+        long interviewed = candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.COMPLETED);
+        summary.setInterviewed(interviewed);
+
+        long dropped = candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.CANCELLED)
+                + candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.ABANDONED)
+                + candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.TIMED_OUT);
+        summary.setDropped(dropped);
+
+        summary.setAll(candidateRepository.countByPositionId(positionId));
         return summary;
+    }
+
+    private static final class StatusFilters {
+        private final List<JobCandidateInviteStatus> inviteStatuses;
+        private final List<JobCandidateInterviewStatus> interviewStatuses;
+
+        private StatusFilters(List<JobCandidateInviteStatus> inviteStatuses,
+                              List<JobCandidateInterviewStatus> interviewStatuses) {
+            this.inviteStatuses = inviteStatuses;
+            this.interviewStatuses = interviewStatuses;
+        }
+
+        private List<JobCandidateInviteStatus> inviteStatuses() {
+            return inviteStatuses;
+        }
+
+        private List<JobCandidateInterviewStatus> interviewStatuses() {
+            return interviewStatuses;
+        }
     }
 
     private JobCandidateItemResponse toItemResponse(CompanyJobCandidateEntity entity) {

@@ -5,103 +5,54 @@ package com.example.grpcdemo.controller.dto;
  */
 public class JobCandidateStatusSummary {
 
-    private long invitePending;
-    private long inviteSent;
-    private long inviteFailed;
-    private long emailMissing;
-    private long interviewNotStarted;
-    private long interviewScheduled;
-    private long interviewInProgress;
-    private long interviewCompleted;
-    private long interviewCancelled;
-    private long interviewAbandoned;
-    private long interviewTimedOut;
+    /** 待邀约（包含邮箱缺失、邀约失败等情况）。 */
+    private long waitingInvite;
+    /** 未进行面试（包含已安排但未完成）。 */
+    private long notInterviewed;
+    /** 已完成面试。 */
+    private long interviewed;
+    /** 已放弃或已取消。 */
+    private long dropped;
+    /** 全部候选人数量。 */
+    private long all;
 
-    public long getInvitePending() {
-        return invitePending;
+    public long getWaitingInvite() {
+        return waitingInvite;
     }
 
-    public void setInvitePending(long invitePending) {
-        this.invitePending = invitePending;
+    public void setWaitingInvite(long waitingInvite) {
+        this.waitingInvite = waitingInvite;
     }
 
-    public long getInviteSent() {
-        return inviteSent;
+    public long getNotInterviewed() {
+        return notInterviewed;
     }
 
-    public void setInviteSent(long inviteSent) {
-        this.inviteSent = inviteSent;
+    public void setNotInterviewed(long notInterviewed) {
+        this.notInterviewed = notInterviewed;
     }
 
-    public long getInviteFailed() {
-        return inviteFailed;
+    public long getInterviewed() {
+        return interviewed;
     }
 
-    public void setInviteFailed(long inviteFailed) {
-        this.inviteFailed = inviteFailed;
+    public void setInterviewed(long interviewed) {
+        this.interviewed = interviewed;
     }
 
-    public long getEmailMissing() {
-        return emailMissing;
+    public long getDropped() {
+        return dropped;
     }
 
-    public void setEmailMissing(long emailMissing) {
-        this.emailMissing = emailMissing;
+    public void setDropped(long dropped) {
+        this.dropped = dropped;
     }
 
-    public long getInterviewNotStarted() {
-        return interviewNotStarted;
+    public long getAll() {
+        return all;
     }
 
-    public void setInterviewNotStarted(long interviewNotStarted) {
-        this.interviewNotStarted = interviewNotStarted;
-    }
-
-    public long getInterviewScheduled() {
-        return interviewScheduled;
-    }
-
-    public void setInterviewScheduled(long interviewScheduled) {
-        this.interviewScheduled = interviewScheduled;
-    }
-
-    public long getInterviewInProgress() {
-        return interviewInProgress;
-    }
-
-    public void setInterviewInProgress(long interviewInProgress) {
-        this.interviewInProgress = interviewInProgress;
-    }
-
-    public long getInterviewCompleted() {
-        return interviewCompleted;
-    }
-
-    public void setInterviewCompleted(long interviewCompleted) {
-        this.interviewCompleted = interviewCompleted;
-    }
-
-    public long getInterviewCancelled() {
-        return interviewCancelled;
-    }
-
-    public void setInterviewCancelled(long interviewCancelled) {
-        this.interviewCancelled = interviewCancelled;
-    }
-
-    public long getInterviewAbandoned() {
-        return interviewAbandoned;
-    }
-
-    public void setInterviewAbandoned(long interviewAbandoned) {
-        this.interviewAbandoned = interviewAbandoned;
-    }
-
-    public long getInterviewTimedOut() {
-        return interviewTimedOut;
-    }
-
-    public void setInterviewTimedOut(long interviewTimedOut) {
-        this.interviewTimedOut = interviewTimedOut;
+    public void setAll(long all) {
+        this.all = all;
     }
 }
