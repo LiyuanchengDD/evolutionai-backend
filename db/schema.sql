@@ -222,6 +222,15 @@ CREATE TABLE IF NOT EXISTS public.job_candidates (
 CREATE INDEX IF NOT EXISTS job_candidates_position_id_idx
     ON public.job_candidates (position_id);
 
+CREATE INDEX IF NOT EXISTS job_candidates_position_created_at_idx
+    ON public.job_candidates (position_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS job_candidates_position_invite_status_idx
+    ON public.job_candidates (position_id, invite_status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS job_candidates_position_interview_status_idx
+    ON public.job_candidates (position_id, interview_status, created_at DESC);
+
 DROP TRIGGER IF EXISTS set_job_candidates_updated_at
     ON public.job_candidates;
 CREATE TRIGGER set_job_candidates_updated_at
