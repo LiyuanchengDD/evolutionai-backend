@@ -395,7 +395,6 @@ public class EnterpriseOnboardingService {
         response.setTemplateInfo(session.getStep3() != null ? toTemplateDto(session.getStep3()) : null);
 
         response.setRecords(localizeRecords(session.toRecordDtos(), locale));
-        response.setRecords(session.toRecordDtos());
       
         Step3Data step3 = session.getStep3();
         return populateAvailableVariables(response, preferredLanguage, step3 != null ? step3.language : null);
@@ -420,7 +419,6 @@ public class EnterpriseOnboardingService {
         response.setTemplateInfo(toTemplateDto(step3));
 
         response.setRecords(localizeRecords(records, locale));
-        response.setRecords(records);
 
         return populateAvailableVariables(response, preferredLanguage, step3 != null ? step3.language : null);
     }
