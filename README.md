@@ -20,3 +20,13 @@ services such as `AuthServiceImpl` and `CandidateServiceImpl`.
 `Proto path element is not a directory` 错误。现在构建流程已调整为仅使用本地 proto
 定义，因此上述命令（或任何标准 Maven 生命周期命令，例如 `./mvnw clean package`）
 在 macOS 与 Linux 环境下都能顺利通过。
+
+> **Note (2025-02)**
+>
+> Apple Silicon macOS 15 (Sonoma) users may see `error reading …` compilation
+> failures coming from `javac` while it reads the generated protobuf sources.
+> These stem from protoc 3.25.x generating files that occasionally confuse the
+> JDK compiler on that platform.  The project now pins protoc/protobuf to
+> version **3.21.12**, which ships a stable macOS aarch64 binary and avoids the
+> compiler crash.  No application code changes are required; simply rebuild with
+> the updated `pom.xml`.
