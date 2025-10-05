@@ -10,6 +10,12 @@ import com.example.grpcdemo.controller.dto.JobCandidateResumeResponse;
 import com.example.grpcdemo.controller.dto.JobCandidateUpdateRequest;
 import com.example.grpcdemo.service.CompanyJobCandidateService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * 候选人详情与操作接口。
@@ -35,6 +43,26 @@ public class JobCandidateController {
     @GetMapping("/{jobCandidateId}/resume")
     public JobCandidateResumeResponse resume(@PathVariable("jobCandidateId") String jobCandidateId) {
         return candidateService.getResume(jobCandidateId);
+    }
+
+    @GetMapping("/{jobCandidateId}/resume/file")
+    public ResponseEntity<ByteArrayResource> resumeFile(@PathVariable("jobCandidateId") String jobCandidateId) {
+        CompanyJobCandidateService.ResumeFilePayload file = candidateService.getResumeFile(jobCandidateId);
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(file.fileType());
+        } catch (InvalidMediaTypeException e) {
+            mediaType = MediaType.APPLICATION_PDF;
+        }
+        ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                .filename(file.fileName(), StandardCharsets.UTF_8)
+                .build();
+        ByteArrayResource resource = new ByteArrayResource(file.content());
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .contentLength(file.content().length)
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                .body(resource);
     }
 
     @PatchMapping("/{jobCandidateId}")
