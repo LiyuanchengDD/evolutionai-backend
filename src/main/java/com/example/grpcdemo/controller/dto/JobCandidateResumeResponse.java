@@ -23,6 +23,10 @@ public class JobCandidateResumeResponse {
     private String fileType;
     private Instant uploadedAt;
     private Float confidence;
+    private boolean interviewRecordAvailable;
+    private boolean aiEvaluationAvailable;
+    private Instant interviewCompletedAt;
+    private Instant interviewDeadlineAt;
 
     public String getJobCandidateId() {
         return jobCandidateId;
@@ -126,5 +130,37 @@ public class JobCandidateResumeResponse {
 
     public void setConfidence(Float confidence) {
         this.confidence = confidence;
+    }
+
+    public boolean isInterviewRecordAvailable() {
+        return interviewRecordAvailable;
+    }
+
+    public void setInterviewRecordAvailable(boolean interviewRecordAvailable) {
+        this.interviewRecordAvailable = interviewRecordAvailable;
+    }
+
+    public boolean isAiEvaluationAvailable() {
+        return aiEvaluationAvailable;
+    }
+
+    public void setAiEvaluationAvailable(boolean aiEvaluationAvailable) {
+        this.aiEvaluationAvailable = aiEvaluationAvailable;
+    }
+
+    public Instant getInterviewCompletedAt() {
+        return interviewCompletedAt;
+    }
+
+    public void setInterviewCompletedAt(Instant interviewCompletedAt) {
+        this.interviewCompletedAt = interviewCompletedAt;
+    }
+
+    public Instant getInterviewDeadlineAt() {
+        return interviewDeadlineAt;
+    }
+
+    public void setInterviewDeadlineAt(Instant interviewDeadlineAt) {
+        this.interviewDeadlineAt = interviewDeadlineAt;
     }
 }

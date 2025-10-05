@@ -14,6 +14,8 @@ public class JobCandidateStatusSummary {
     private long interviewInProgress;
     private long interviewCompleted;
     private long interviewCancelled;
+    private long interviewAbandoned;
+    private long interviewTimedOut;
 
     public long getInvitePending() {
         return invitePending;
@@ -85,5 +87,21 @@ public class JobCandidateStatusSummary {
 
     public void setInterviewCancelled(long interviewCancelled) {
         this.interviewCancelled = interviewCancelled;
+    }
+
+    public long getInterviewAbandoned() {
+        return interviewAbandoned;
+    }
+
+    public void setInterviewAbandoned(long interviewAbandoned) {
+        this.interviewAbandoned = interviewAbandoned;
+    }
+
+    public long getInterviewTimedOut() {
+        return interviewTimedOut;
+    }
+
+    public void setInterviewTimedOut(long interviewTimedOut) {
+        this.interviewTimedOut = interviewTimedOut;
     }
 }

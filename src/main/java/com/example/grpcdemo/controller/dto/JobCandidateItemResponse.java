@@ -19,6 +19,10 @@ public class JobCandidateItemResponse {
     private JobCandidateInterviewStatus interviewStatus;
     private boolean emailMissing;
     private boolean resumeAvailable;
+    private boolean interviewRecordAvailable;
+    private boolean aiEvaluationAvailable;
+    private Instant interviewCompletedAt;
+    private Instant interviewDeadlineAt;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -34,6 +38,10 @@ public class JobCandidateItemResponse {
                                     JobCandidateInterviewStatus interviewStatus,
                                     boolean emailMissing,
                                     boolean resumeAvailable,
+                                    boolean interviewRecordAvailable,
+                                    boolean aiEvaluationAvailable,
+                                    Instant interviewCompletedAt,
+                                    Instant interviewDeadlineAt,
                                     Instant createdAt,
                                     Instant updatedAt) {
         this.jobCandidateId = jobCandidateId;
@@ -45,6 +53,10 @@ public class JobCandidateItemResponse {
         this.interviewStatus = interviewStatus;
         this.emailMissing = emailMissing;
         this.resumeAvailable = resumeAvailable;
+        this.interviewRecordAvailable = interviewRecordAvailable;
+        this.aiEvaluationAvailable = aiEvaluationAvailable;
+        this.interviewCompletedAt = interviewCompletedAt;
+        this.interviewDeadlineAt = interviewDeadlineAt;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -119,6 +131,38 @@ public class JobCandidateItemResponse {
 
     public void setResumeAvailable(boolean resumeAvailable) {
         this.resumeAvailable = resumeAvailable;
+    }
+
+    public boolean isInterviewRecordAvailable() {
+        return interviewRecordAvailable;
+    }
+
+    public void setInterviewRecordAvailable(boolean interviewRecordAvailable) {
+        this.interviewRecordAvailable = interviewRecordAvailable;
+    }
+
+    public boolean isAiEvaluationAvailable() {
+        return aiEvaluationAvailable;
+    }
+
+    public void setAiEvaluationAvailable(boolean aiEvaluationAvailable) {
+        this.aiEvaluationAvailable = aiEvaluationAvailable;
+    }
+
+    public Instant getInterviewCompletedAt() {
+        return interviewCompletedAt;
+    }
+
+    public void setInterviewCompletedAt(Instant interviewCompletedAt) {
+        this.interviewCompletedAt = interviewCompletedAt;
+    }
+
+    public Instant getInterviewDeadlineAt() {
+        return interviewDeadlineAt;
+    }
+
+    public void setInterviewDeadlineAt(Instant interviewDeadlineAt) {
+        this.interviewDeadlineAt = interviewDeadlineAt;
     }
 
     public Instant getCreatedAt() {
