@@ -707,6 +707,9 @@ public class CompanyJobCandidateService {
                 + candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.INVITE_FAILED);
         summary.setWaitingInvite(waitingInvite);
 
+        long invited = candidateRepository.countByPositionIdAndInviteStatus(positionId, JobCandidateInviteStatus.INVITE_SENT);
+        summary.setInvited(invited);
+
         long notInterviewed = candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.NOT_INTERVIEWED)
                 + candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.SCHEDULED)
                 + candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.IN_PROGRESS);
@@ -719,6 +722,9 @@ public class CompanyJobCandidateService {
                 + candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.ABANDONED)
                 + candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.TIMED_OUT);
         summary.setDropped(dropped);
+
+        long timedOut = candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.TIMED_OUT);
+        summary.setTimedOut(timedOut);
 
         summary.setAll(candidateRepository.countByPositionId(positionId));
         return summary;
