@@ -82,6 +82,27 @@ public class JobCandidateController {
         return candidateService.getInterviewRecord(jobCandidateId);
     }
 
+    @GetMapping("/{jobCandidateId}/interview-record/audios/{audioId}")
+    public ResponseEntity<ByteArrayResource> interviewAudio(@PathVariable("jobCandidateId") String jobCandidateId,
+                                                            @PathVariable("audioId") String audioId) {
+        CompanyJobCandidateService.InterviewAudioPayload audio = candidateService.getInterviewAudio(jobCandidateId, audioId);
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(audio.fileType());
+        } catch (InvalidMediaTypeException e) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+        ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                .filename(audio.fileName(), StandardCharsets.UTF_8)
+                .build();
+        ByteArrayResource resource = new ByteArrayResource(audio.content());
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .contentLength(audio.content().length)
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                .body(resource);
+    }
+
     @PutMapping("/{jobCandidateId}/interview-record")
     public CandidateInterviewRecordResponse upsertInterviewRecord(@PathVariable("jobCandidateId") String jobCandidateId,
                                                                   @Valid @RequestBody(required = false) CandidateInterviewRecordRequest request) {

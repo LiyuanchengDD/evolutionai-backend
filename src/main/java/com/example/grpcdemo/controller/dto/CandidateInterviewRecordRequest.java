@@ -33,6 +33,9 @@ public class CandidateInterviewRecordRequest {
     @Valid
     private List<CandidateInterviewQuestionDto> questions;
 
+    @Valid
+    private List<CandidateInterviewAudioRequest> audios;
+
     /**
      * 对话/语音转写等完整原始数据，JSON 字符串。
      */
@@ -105,6 +108,14 @@ public class CandidateInterviewRecordRequest {
 
     public void setQuestions(List<CandidateInterviewQuestionDto> questions) {
         this.questions = questions;
+    }
+
+    public List<CandidateInterviewAudioRequest> getAudios() {
+        return audios;
+    }
+
+    public void setAudios(List<CandidateInterviewAudioRequest> audios) {
+        this.audios = audios;
     }
 
     public String getTranscriptRaw() {

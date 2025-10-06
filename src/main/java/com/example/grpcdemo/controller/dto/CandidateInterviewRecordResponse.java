@@ -14,10 +14,13 @@ public class CandidateInterviewRecordResponse {
     private String interviewMode;
     private String interviewerName;
     private String aiSessionId;
+    private String positionId;
+    private String positionName;
     private Instant interviewStartedAt;
     private Instant interviewEndedAt;
     private Integer durationSeconds;
     private List<CandidateInterviewQuestionDto> questions;
+    private List<CandidateInterviewAudioDto> audios;
     private String transcriptRaw;
     private Map<String, Object> metadata;
     private Instant createdAt;
@@ -63,6 +66,22 @@ public class CandidateInterviewRecordResponse {
         this.aiSessionId = aiSessionId;
     }
 
+    public String getPositionId() {
+        return positionId;
+    }
+
+    public void setPositionId(String positionId) {
+        this.positionId = positionId;
+    }
+
+    public String getPositionName() {
+        return positionName;
+    }
+
+    public void setPositionName(String positionName) {
+        this.positionName = positionName;
+    }
+
     public Instant getInterviewStartedAt() {
         return interviewStartedAt;
     }
@@ -93,6 +112,14 @@ public class CandidateInterviewRecordResponse {
 
     public void setQuestions(List<CandidateInterviewQuestionDto> questions) {
         this.questions = questions;
+    }
+
+    public List<CandidateInterviewAudioDto> getAudios() {
+        return audios;
+    }
+
+    public void setAudios(List<CandidateInterviewAudioDto> audios) {
+        this.audios = audios;
     }
 
     public String getTranscriptRaw() {
