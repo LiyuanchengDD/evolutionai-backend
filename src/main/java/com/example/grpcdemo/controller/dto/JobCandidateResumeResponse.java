@@ -12,6 +12,7 @@ public class JobCandidateResumeResponse {
 
     private String jobCandidateId;
     private String positionId;
+    private String positionName;
     private String name;
     private String email;
     private String phone;
@@ -42,6 +43,14 @@ public class JobCandidateResumeResponse {
 
     public void setPositionId(String positionId) {
         this.positionId = positionId;
+    }
+
+    public String getPositionName() {
+        return positionName;
+    }
+
+    public void setPositionName(String positionName) {
+        this.positionName = positionName;
     }
 
     public String getName() {

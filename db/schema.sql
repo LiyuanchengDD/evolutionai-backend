@@ -290,6 +290,31 @@ CREATE TRIGGER set_candidate_interview_records_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 
+CREATE TABLE IF NOT EXISTS public.candidate_interview_audios (
+    audio_id            uuid PRIMARY KEY,
+    job_candidate_id    uuid        NOT NULL REFERENCES public.job_candidates (job_candidate_id) ON DELETE CASCADE,
+    interview_record_id uuid        NOT NULL REFERENCES public.candidate_interview_records (record_id) ON DELETE CASCADE,
+    question_sequence   integer,
+    file_name           varchar(255),
+    content_type        varchar(100),
+    duration_seconds    integer,
+    size_bytes          bigint,
+    transcript          varchar(2000),
+    audio_data          bytea       NOT NULL,
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    updated_at          timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS candidate_interview_audios_candidate_idx
+    ON public.candidate_interview_audios (job_candidate_id, interview_record_id);
+
+DROP TRIGGER IF EXISTS set_candidate_interview_audios_updated_at
+    ON public.candidate_interview_audios;
+CREATE TRIGGER set_candidate_interview_audios_updated_at
+    BEFORE UPDATE ON public.candidate_interview_audios
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
 CREATE TABLE IF NOT EXISTS public.candidate_ai_evaluations (
     evaluation_id         uuid PRIMARY KEY,
     job_candidate_id      uuid        NOT NULL REFERENCES public.job_candidates (job_candidate_id) ON DELETE CASCADE,

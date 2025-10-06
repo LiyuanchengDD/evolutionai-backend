@@ -2,6 +2,8 @@ package com.example.grpcdemo.service;
 
 import com.example.grpcdemo.controller.dto.CandidateAiEvaluationRequest;
 import com.example.grpcdemo.controller.dto.CandidateAiEvaluationResponse;
+import com.example.grpcdemo.controller.dto.CandidateInterviewAudioDto;
+import com.example.grpcdemo.controller.dto.CandidateInterviewAudioRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewQuestionDto;
 import com.example.grpcdemo.controller.dto.CandidateInterviewRecordRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewRecordResponse;
@@ -20,12 +22,14 @@ import com.example.grpcdemo.entity.JobCandidateInterviewStatus;
 import com.example.grpcdemo.entity.JobCandidateInviteStatus;
 import com.example.grpcdemo.entity.JobCandidateResumeEntity;
 import com.example.grpcdemo.entity.CandidateAiEvaluationEntity;
+import com.example.grpcdemo.entity.CandidateInterviewAudioEntity;
 import com.example.grpcdemo.entity.CandidateInterviewRecordEntity;
 import com.example.grpcdemo.repository.CompanyJobCandidateRepository;
 import com.example.grpcdemo.repository.CompanyRecruitingPositionRepository;
 import com.example.grpcdemo.repository.InvitationTemplateRepository;
 import com.example.grpcdemo.repository.JobCandidateResumeRepository;
 import com.example.grpcdemo.repository.CandidateAiEvaluationRepository;
+import com.example.grpcdemo.repository.CandidateInterviewAudioRepository;
 import com.example.grpcdemo.repository.CandidateInterviewRecordRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +54,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -88,6 +92,7 @@ public class CompanyJobCandidateService {
     private final JobCandidateResumeRepository resumeRepository;
     private final InvitationTemplateRepository invitationTemplateRepository;
     private final CandidateInterviewRecordRepository interviewRecordRepository;
+    private final CandidateInterviewAudioRepository interviewAudioRepository;
     private final CandidateAiEvaluationRepository aiEvaluationRepository;
     private final ResumeParser resumeParser;
     private final JavaMailSender mailSender;
@@ -98,6 +103,7 @@ public class CompanyJobCandidateService {
                                       JobCandidateResumeRepository resumeRepository,
                                       InvitationTemplateRepository invitationTemplateRepository,
                                       CandidateInterviewRecordRepository interviewRecordRepository,
+                                      CandidateInterviewAudioRepository interviewAudioRepository,
                                       CandidateAiEvaluationRepository aiEvaluationRepository,
                                       ResumeParser resumeParser,
                                       JavaMailSender mailSender,
@@ -107,6 +113,7 @@ public class CompanyJobCandidateService {
         this.resumeRepository = resumeRepository;
         this.invitationTemplateRepository = invitationTemplateRepository;
         this.interviewRecordRepository = interviewRecordRepository;
+        this.interviewAudioRepository = interviewAudioRepository;
         this.aiEvaluationRepository = aiEvaluationRepository;
         this.resumeParser = resumeParser;
         this.mailSender = mailSender;
@@ -249,9 +256,11 @@ public class CompanyJobCandidateService {
         CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
         candidate = refreshInterviewTimeoutIfNeeded(candidate);
+        CompanyRecruitingPositionEntity position = requirePosition(candidate.getPositionId());
         JobCandidateResumeResponse response = new JobCandidateResumeResponse();
         response.setJobCandidateId(candidate.getJobCandidateId());
         response.setPositionId(candidate.getPositionId());
+        response.setPositionName(position.getPositionName());
         response.setName(candidate.getCandidateName());
         response.setEmail(candidate.getCandidateEmail());
         response.setPhone(candidate.getCandidatePhone());
@@ -292,6 +301,21 @@ public class CompanyJobCandidateService {
         String fileType = StringUtils.hasText(resume.getFileType()) ? resume.getFileType() : "application/pdf";
         String fileName = resolveResumeFileName(candidate, resume);
         return new ResumeFilePayload(fileName, fileType, content);
+    }
+
+    @Transactional(readOnly = true)
+    public InterviewAudioPayload getInterviewAudio(String jobCandidateId, String audioId) {
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        CandidateInterviewAudioEntity audio = interviewAudioRepository.findByAudioIdAndJobCandidateId(audioId, jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "音频不存在"));
+        byte[] data = audio.getAudioData();
+        if (data == null || data.length == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "音频内容不存在");
+        }
+        String contentType = StringUtils.hasText(audio.getContentType()) ? audio.getContentType() : "audio/mpeg";
+        String fileName = resolveAudioFileName(candidate, audio);
+        return new InterviewAudioPayload(fileName, contentType, data);
     }
 
     @Transactional
@@ -394,12 +418,17 @@ public class CompanyJobCandidateService {
 
     @Transactional(readOnly = true)
     public CandidateInterviewRecordResponse getInterviewRecord(String jobCandidateId) {
-        candidateRepository.findById(jobCandidateId)
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        candidate = refreshInterviewTimeoutIfNeeded(candidate);
+        CompanyRecruitingPositionEntity position = requirePosition(candidate.getPositionId());
         CandidateInterviewRecordEntity record = interviewRecordRepository
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到面试记录"));
-        return toInterviewRecordResponse(record);
+        List<CandidateInterviewAudioEntity> audios = interviewAudioRepository
+                .findByJobCandidateIdAndInterviewRecordIdOrderByQuestionSequenceAscCreatedAtAsc(jobCandidateId,
+                        record.getRecordId());
+        return toInterviewRecordResponse(record, candidate, position, audios);
     }
 
     @Transactional
@@ -436,6 +465,15 @@ public class CompanyJobCandidateService {
         }
         CandidateInterviewRecordEntity saved = interviewRecordRepository.save(entity);
 
+        List<CandidateInterviewAudioEntity> audios;
+        if (request != null && request.getAudios() != null) {
+            audios = replaceInterviewAudios(candidate, saved, request.getAudios());
+        } else {
+            audios = interviewAudioRepository
+                    .findByJobCandidateIdAndInterviewRecordIdOrderByQuestionSequenceAscCreatedAtAsc(jobCandidateId,
+                            saved.getRecordId());
+        }
+
         candidate.setInterviewRecordId(saved.getRecordId());
         if (saved.getInterviewEndedAt() != null) {
             candidate.setInterviewCompletedAt(saved.getInterviewEndedAt());
@@ -450,17 +488,23 @@ public class CompanyJobCandidateService {
         candidate.setUpdatedAt(Instant.now());
         candidateRepository.save(candidate);
 
-        return toInterviewRecordResponse(saved);
+        CompanyRecruitingPositionEntity position = requirePosition(candidate.getPositionId());
+        return toInterviewRecordResponse(saved, candidate, position, audios);
     }
 
     @Transactional(readOnly = true)
     public CandidateAiEvaluationResponse getAiEvaluation(String jobCandidateId) {
-        candidateRepository.findById(jobCandidateId)
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        candidate = refreshInterviewTimeoutIfNeeded(candidate);
+        CompanyRecruitingPositionEntity position = requirePosition(candidate.getPositionId());
         CandidateAiEvaluationEntity evaluation = aiEvaluationRepository
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到 AI 评估报告"));
-        return toAiEvaluationResponse(evaluation);
+        CandidateAiEvaluationResponse response = toAiEvaluationResponse(evaluation);
+        response.setPositionId(position.getPositionId());
+        response.setPositionName(position.getPositionName());
+        return response;
     }
 
     @Transactional
@@ -509,25 +553,108 @@ public class CompanyJobCandidateService {
         candidate.setUpdatedAt(Instant.now());
         candidateRepository.save(candidate);
 
-        return toAiEvaluationResponse(saved);
+        CompanyRecruitingPositionEntity position = requirePosition(candidate.getPositionId());
+        CandidateAiEvaluationResponse response = toAiEvaluationResponse(saved);
+        response.setPositionId(position.getPositionId());
+        response.setPositionName(position.getPositionName());
+        return response;
     }
 
-    private CandidateInterviewRecordResponse toInterviewRecordResponse(CandidateInterviewRecordEntity entity) {
+    private CandidateInterviewRecordResponse toInterviewRecordResponse(CandidateInterviewRecordEntity entity,
+                                                                       CompanyJobCandidateEntity candidate,
+                                                                       CompanyRecruitingPositionEntity position,
+                                                                       List<CandidateInterviewAudioEntity> audios) {
         CandidateInterviewRecordResponse response = new CandidateInterviewRecordResponse();
         response.setInterviewRecordId(entity.getRecordId());
         response.setJobCandidateId(entity.getJobCandidateId());
         response.setInterviewMode(entity.getInterviewMode());
         response.setInterviewerName(entity.getInterviewerName());
         response.setAiSessionId(entity.getAiSessionId());
+        response.setPositionId(position.getPositionId());
+        response.setPositionName(position.getPositionName());
         response.setInterviewStartedAt(entity.getInterviewStartedAt());
         response.setInterviewEndedAt(entity.getInterviewEndedAt());
         response.setDurationSeconds(entity.getDurationSeconds());
         response.setQuestions(readQuestionList(entity.getQuestionsJson()));
+        response.setAudios(audios.stream()
+                .map(this::toAudioDto)
+                .toList());
         response.setTranscriptRaw(entity.getTranscriptJson());
         response.setMetadata(readGenericMap(entity.getMetadataJson()));
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
         return response;
+    }
+
+    private CandidateInterviewAudioDto toAudioDto(CandidateInterviewAudioEntity entity) {
+        CandidateInterviewAudioDto dto = new CandidateInterviewAudioDto();
+        dto.setAudioId(entity.getAudioId());
+        dto.setQuestionSequence(entity.getQuestionSequence());
+        dto.setFileName(entity.getFileName());
+        dto.setContentType(StringUtils.hasText(entity.getContentType()) ? entity.getContentType() : "audio/mpeg");
+        dto.setDurationSeconds(entity.getDurationSeconds());
+        dto.setSizeBytes(entity.getSizeBytes());
+        dto.setTranscript(entity.getTranscript());
+        dto.setDownloadUrl(String.format("/api/enterprise/job-candidates/%s/interview-record/audios/%s",
+                entity.getJobCandidateId(), entity.getAudioId()));
+        return dto;
+    }
+
+    private List<CandidateInterviewAudioEntity> replaceInterviewAudios(CompanyJobCandidateEntity candidate,
+                                                                       CandidateInterviewRecordEntity record,
+                                                                       List<CandidateInterviewAudioRequest> requests) {
+        interviewAudioRepository.deleteByInterviewRecordId(record.getRecordId());
+        if (CollectionUtils.isEmpty(requests)) {
+            return Collections.emptyList();
+        }
+        List<CandidateInterviewAudioEntity> saved = new ArrayList<>();
+        for (CandidateInterviewAudioRequest audioRequest : requests) {
+            if (audioRequest == null) {
+                continue;
+            }
+            byte[] data;
+            try {
+                data = Base64.getDecoder().decode(audioRequest.getBase64Content());
+            } catch (IllegalArgumentException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "音频内容不是有效的 Base64 编码", e);
+            }
+            if (data == null || data.length == 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "音频内容不能为空");
+            }
+            CandidateInterviewAudioEntity audio = new CandidateInterviewAudioEntity();
+            audio.setAudioId(StringUtils.hasText(audioRequest.getAudioId())
+                    ? audioRequest.getAudioId()
+                    : UUID.randomUUID().toString());
+            audio.setJobCandidateId(candidate.getJobCandidateId());
+            audio.setInterviewRecordId(record.getRecordId());
+            audio.setQuestionSequence(audioRequest.getQuestionSequence());
+            audio.setFileName(audioRequest.getFileName());
+            audio.setContentType(audioRequest.getContentType());
+            audio.setDurationSeconds(audioRequest.getDurationSeconds());
+            audio.setTranscript(audioRequest.getTranscript());
+            audio.setAudioData(data);
+            audio.setSizeBytes((long) data.length);
+            saved.add(interviewAudioRepository.save(audio));
+        }
+        saved.sort((a, b) -> {
+            Integer seqA = a.getQuestionSequence();
+            Integer seqB = b.getQuestionSequence();
+            if (seqA == null && seqB == null) {
+                return a.getCreatedAt().compareTo(b.getCreatedAt());
+            }
+            if (seqA == null) {
+                return 1;
+            }
+            if (seqB == null) {
+                return -1;
+            }
+            int compare = Integer.compare(seqA, seqB);
+            if (compare != 0) {
+                return compare;
+            }
+            return a.getCreatedAt().compareTo(b.getCreatedAt());
+        });
+        return saved;
     }
 
     private CandidateAiEvaluationResponse toAiEvaluationResponse(CandidateAiEvaluationEntity entity) {
@@ -726,7 +853,16 @@ public class CompanyJobCandidateService {
         long timedOut = candidateRepository.countByPositionIdAndInterviewStatus(positionId, JobCandidateInterviewStatus.TIMED_OUT);
         summary.setTimedOut(timedOut);
 
-        summary.setAll(candidateRepository.countByPositionId(positionId));
+        long all = candidateRepository.countByPositionId(positionId);
+        summary.setAll(all);
+
+        EnumMap<JobCandidateListStatus, Long> counts = new EnumMap<>(JobCandidateListStatus.class);
+        counts.put(JobCandidateListStatus.WAITING_INVITE, waitingInvite);
+        counts.put(JobCandidateListStatus.NOT_INTERVIEWED, notInterviewed);
+        counts.put(JobCandidateListStatus.INTERVIEWED, interviewed);
+        counts.put(JobCandidateListStatus.DROPPED, dropped);
+        counts.put(JobCandidateListStatus.ALL, all);
+        summary.setStatusCounts(counts);
         return summary;
     }
 
@@ -793,6 +929,34 @@ public class CompanyJobCandidateService {
         return resume.getResumeId() + ".pdf";
     }
 
+    private String resolveAudioFileName(CompanyJobCandidateEntity candidate, CandidateInterviewAudioEntity audio) {
+        if (StringUtils.hasText(audio.getFileName())) {
+            return audio.getFileName();
+        }
+        String baseName = StringUtils.hasText(candidate.getCandidateName())
+                ? candidate.getCandidateName().trim()
+                : "interview-audio";
+        String sequenceSuffix = audio.getQuestionSequence() != null ? "-q" + audio.getQuestionSequence() : "";
+        String contentType = audio.getContentType();
+        String extension;
+        if (StringUtils.hasText(contentType)) {
+            if (contentType.contains("wav")) {
+                extension = ".wav";
+            } else if (contentType.contains("ogg")) {
+                extension = ".ogg";
+            } else if (contentType.contains("m4a")) {
+                extension = ".m4a";
+            } else if (contentType.contains("aac")) {
+                extension = ".aac";
+            } else {
+                extension = ".mp3";
+            }
+        } else {
+            extension = ".mp3";
+        }
+        return baseName + sequenceSuffix + extension;
+    }
+
     private String deriveNameFromFile(String fileName) {
         if (!StringUtils.hasText(fileName)) {
             return "未命名候选人";
@@ -817,5 +981,8 @@ public class CompanyJobCandidateService {
     }
 
     public record ResumeFilePayload(String fileName, String fileType, byte[] content) {
+    }
+
+    public record InterviewAudioPayload(String fileName, String fileType, byte[] content) {
     }
 }

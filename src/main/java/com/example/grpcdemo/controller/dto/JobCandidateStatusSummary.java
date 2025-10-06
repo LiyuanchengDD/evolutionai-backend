@@ -1,5 +1,7 @@
 package com.example.grpcdemo.controller.dto;
 
+import java.util.Map;
+
 /**
  * 岗位候选人状态聚合。
  */
@@ -19,6 +21,8 @@ public class JobCandidateStatusSummary {
     private long timedOut;
     /** 全部候选人数量。 */
     private long all;
+    /** 按筛选标签聚合的数量。 */
+    private Map<JobCandidateListStatus, Long> statusCounts;
 
     public long getWaitingInvite() {
         return waitingInvite;
@@ -74,5 +78,13 @@ public class JobCandidateStatusSummary {
 
     public void setAll(long all) {
         this.all = all;
+    }
+
+    public Map<JobCandidateListStatus, Long> getStatusCounts() {
+        return statusCounts;
+    }
+
+    public void setStatusCounts(Map<JobCandidateListStatus, Long> statusCounts) {
+        this.statusCounts = statusCounts;
     }
 }

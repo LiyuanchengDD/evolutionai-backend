@@ -13,6 +13,8 @@ public class CandidateAiEvaluationResponse {
     private String evaluationId;
     private String jobCandidateId;
     private String interviewRecordId;
+    private String positionId;
+    private String positionName;
     private BigDecimal overallScore;
     private String scoreLevel;
     private List<String> strengths;
@@ -49,6 +51,22 @@ public class CandidateAiEvaluationResponse {
 
     public void setInterviewRecordId(String interviewRecordId) {
         this.interviewRecordId = interviewRecordId;
+    }
+
+    public String getPositionId() {
+        return positionId;
+    }
+
+    public void setPositionId(String positionId) {
+        this.positionId = positionId;
+    }
+
+    public String getPositionName() {
+        return positionName;
+    }
+
+    public void setPositionName(String positionName) {
+        this.positionName = positionName;
     }
 
     public BigDecimal getOverallScore() {
