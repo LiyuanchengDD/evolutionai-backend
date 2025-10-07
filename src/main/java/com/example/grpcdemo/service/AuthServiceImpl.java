@@ -37,19 +37,20 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
     @Override
     public void registerUser(RegisterUserRequest request, StreamObserver<UserResponse> responseObserver) {
-        String email = request.getEmail().isBlank() ? request.getUsername().trim() : request.getEmail().trim();
+        String emailInput = request.getEmail().isBlank() ? request.getUsername().trim() : request.getEmail().trim();
         String password = request.getPassword();
         String role = request.getRole().trim();
         String normalizedRole = role.toLowerCase(Locale.ROOT);
+        String normalizedEmail = emailInput.toLowerCase(Locale.ROOT);
 
-        if (email.isEmpty() || password.isEmpty() || role.isEmpty()) {
+        if (normalizedEmail.isEmpty() || password.isEmpty() || role.isEmpty()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("Email, password and role are required")
                     .asRuntimeException());
             return;
         }
 
-        Optional<UserAccountEntity> existing = userRepository.findByEmailAndRole(email, normalizedRole);
+        Optional<UserAccountEntity> existing = userRepository.findByEmailAndRole(normalizedEmail, normalizedRole);
         if (existing.isPresent()) {
             responseObserver.onError(Status.ALREADY_EXISTS
                     .withDescription("User already exists")
@@ -59,9 +60,9 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
         String userId = UUID.randomUUID().toString();
         String hashedPassword = passwordEncoder.encode(password);
-        UserAccountEntity entity = new UserAccountEntity(userId, email, hashedPassword, normalizedRole, UserAccountStatus.ACTIVE);
+        UserAccountEntity entity = new UserAccountEntity(userId, normalizedEmail, hashedPassword, normalizedRole, UserAccountStatus.ACTIVE);
         userRepository.save(entity);
-        log.info("Registered new user: email={}, role={}", email, normalizedRole);
+        log.info("Registered new user: email={}, role={}", normalizedEmail, normalizedRole);
 
         responseObserver.onNext(toResponse(entity));
         responseObserver.onCompleted();
@@ -69,19 +70,20 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
     @Override
     public void loginUser(LoginRequest request, StreamObserver<UserResponse> responseObserver) {
-        String email = request.getUsername().trim();
+        String emailInput = request.getUsername().trim();
         String password = request.getPassword();
         String role = request.getRole().trim();
         String normalizedRole = role.toLowerCase(Locale.ROOT);
+        String normalizedEmail = emailInput.toLowerCase(Locale.ROOT);
 
-        if (email.isEmpty() || password.isEmpty() || role.isEmpty()) {
+        if (normalizedEmail.isEmpty() || password.isEmpty() || role.isEmpty()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("Email, password and role are required")
                     .asRuntimeException());
             return;
         }
 
-        Optional<UserAccountEntity> existing = userRepository.findByEmailAndRole(email, normalizedRole);
+        Optional<UserAccountEntity> existing = userRepository.findByEmailAndRole(normalizedEmail, normalizedRole);
         if (existing.isEmpty() || !passwordEncoder.matches(password, existing.get().getPasswordHash())) {
             responseObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Invalid email or password")

@@ -47,12 +47,18 @@ class NotificationServiceImplTest {
     void sendInvitation_deliversSuccessResponseWhenMailSent() {
         notificationService.sendInvitation(request, responseObserver);
 
+        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         ArgumentCaptor<SendInvitationResponse> responseCaptor = ArgumentCaptor.forClass(SendInvitationResponse.class);
-        verify(mailSender).send(any(SimpleMailMessage.class));
+        verify(mailSender).send(mailCaptor.capture());
         verify(responseObserver).onNext(responseCaptor.capture());
         assertTrue(responseCaptor.getValue().getSuccess());
         verify(responseObserver).onCompleted();
         verify(responseObserver, never()).onError(any());
+
+        SimpleMailMessage sentMessage = mailCaptor.getValue();
+        assertEquals("candidate@example.com", sentMessage.getTo()[0]);
+        assertEquals("Interview Invitation", sentMessage.getSubject());
+        assertEquals("Please join us for an interview.", sentMessage.getText());
     }
 
     @Test

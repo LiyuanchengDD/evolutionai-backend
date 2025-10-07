@@ -175,7 +175,7 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 ## Hand-off package for front-end mocking
 
 When a front-end teammate wants to mock or jointly debug against the backend,
-share the following artefacts so they can mirror real payloads without waiting
+share the following artifacts so they can mirror real payloads without waiting
 for the backend runtime:
 
 1. **Protobuf contracts** – zip or link to the files under
