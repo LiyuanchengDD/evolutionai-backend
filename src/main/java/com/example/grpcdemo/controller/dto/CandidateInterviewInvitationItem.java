@@ -31,6 +31,9 @@ public class CandidateInterviewInvitationItem {
     private Boolean precheckPassed;
     private Boolean profilePhotoUploaded;
     private Instant answerDeadlineAt;
+    private String candidateEmail;
+    private CandidateInterviewProfilePhotoDto profilePhoto;
+    private String failureReason;
 
     public String getJobCandidateId() {
         return jobCandidateId;
@@ -198,6 +201,30 @@ public class CandidateInterviewInvitationItem {
 
     public void setAnswerDeadlineAt(Instant answerDeadlineAt) {
         this.answerDeadlineAt = answerDeadlineAt;
+    }
+
+    public String getCandidateEmail() {
+        return candidateEmail;
+    }
+
+    public void setCandidateEmail(String candidateEmail) {
+        this.candidateEmail = candidateEmail;
+    }
+
+    public CandidateInterviewProfilePhotoDto getProfilePhoto() {
+        return profilePhoto;
+    }
+
+    public void setProfilePhoto(CandidateInterviewProfilePhotoDto profilePhoto) {
+        this.profilePhoto = profilePhoto;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    public void setFailureReason(String failureReason) {
+        this.failureReason = failureReason;
     }
 }
 

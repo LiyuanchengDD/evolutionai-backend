@@ -3,6 +3,7 @@ package com.example.grpcdemo.controller;
 import com.example.grpcdemo.controller.dto.CandidateInterviewAbandonRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewAnswerRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewAnswerResponse;
+import com.example.grpcdemo.controller.dto.CandidateInterviewBeginResponse;
 import com.example.grpcdemo.controller.dto.CandidateInterviewDetailResponse;
 import com.example.grpcdemo.controller.dto.CandidateInterviewCompleteRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewInvitationItem;
@@ -71,6 +72,11 @@ public class CandidateInterviewController {
     public CandidateInterviewStartResponse start(@PathVariable("jobCandidateId") String jobCandidateId,
                                                  @RequestBody(required = false) CandidateInterviewStartRequest request) {
         return portalService.startInterview(jobCandidateId, request);
+    }
+
+    @PostMapping("/{jobCandidateId}/begin-answering")
+    public CandidateInterviewBeginResponse beginAnswering(@PathVariable("jobCandidateId") String jobCandidateId) {
+        return portalService.beginAnswering(jobCandidateId);
     }
 
     @PostMapping("/{jobCandidateId}/answers")

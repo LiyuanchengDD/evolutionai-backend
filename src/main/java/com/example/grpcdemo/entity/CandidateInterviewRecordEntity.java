@@ -43,6 +43,9 @@ public class CandidateInterviewRecordEntity {
     @Column(name = "precheck_completed_at")
     private Instant precheckCompletedAt;
 
+    @Column(name = "room_entered_at")
+    private Instant roomEnteredAt;
+
     @Column(name = "interview_started_at")
     private Instant interviewStartedAt;
 
@@ -170,6 +173,14 @@ public class CandidateInterviewRecordEntity {
 
     public void setPrecheckCompletedAt(Instant precheckCompletedAt) {
         this.precheckCompletedAt = precheckCompletedAt;
+    }
+
+    public Instant getRoomEnteredAt() {
+        return roomEnteredAt;
+    }
+
+    public void setRoomEnteredAt(Instant roomEnteredAt) {
+        this.roomEnteredAt = roomEnteredAt;
     }
 
     public Instant getInterviewStartedAt() {
