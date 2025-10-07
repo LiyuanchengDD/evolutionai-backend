@@ -232,7 +232,7 @@
           <id>flag-proto-generated</id>
           <phase>generate-sources</phase>
           <goals>
-            <goal>set-property</goal>
+            <goal>set-system-properties</goal>
           </goals>
           <configuration>
             <properties>
