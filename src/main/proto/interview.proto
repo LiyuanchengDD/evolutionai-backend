@@ -43,7 +43,7 @@ message InterviewResponse {
   string candidateId = 2;
   string jobId = 3;
   string scheduledTime = 4;
-  string status = 5; // Scheduled, Confirmed, Rejected, Completed
+  string status = 5; // SCHEDULED, CONFIRMED, REJECTED, COMPLETED
 }
 
 // 查询候选人面试
