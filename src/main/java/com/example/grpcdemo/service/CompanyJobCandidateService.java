@@ -603,6 +603,7 @@ public class CompanyJobCandidateService {
         response.setPositionName(position.getPositionName());
         response.setInterviewStartedAt(entity.getInterviewStartedAt());
         response.setInterviewEndedAt(entity.getInterviewEndedAt());
+        response.setAnswerDeadlineAt(entity.getAnswerDeadlineAt());
         response.setDurationSeconds(entity.getDurationSeconds());
         response.setQuestions(readQuestionList(entity.getQuestionsJson()));
         response.setAudios(audios.stream()
@@ -615,6 +616,7 @@ public class CompanyJobCandidateService {
         response.setProfilePhoto(toProfilePhotoDto(entity));
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
+        response.setTimedOut(candidate.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT);
         return response;
     }
 

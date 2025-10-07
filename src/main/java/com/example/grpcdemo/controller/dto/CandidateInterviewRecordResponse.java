@@ -29,6 +29,7 @@ public class CandidateInterviewRecordResponse {
     private CandidateInterviewProfilePhotoDto profilePhoto;
     private Instant createdAt;
     private Instant updatedAt;
+    private boolean timedOut;
 
     public String getInterviewRecordId() {
         return interviewRecordId;
@@ -188,6 +189,14 @@ public class CandidateInterviewRecordResponse {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public boolean isTimedOut() {
+        return timedOut;
+    }
+
+    public void setTimedOut(boolean timedOut) {
+        this.timedOut = timedOut;
     }
 }
 
