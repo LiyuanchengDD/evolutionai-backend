@@ -3,6 +3,7 @@ package com.example.grpcdemo.service;
 import com.example.grpcdemo.controller.dto.CandidateInterviewAbandonRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewAnswerRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewAnswerResponse;
+import com.example.grpcdemo.controller.dto.CandidateInterviewBeginResponse;
 import com.example.grpcdemo.controller.dto.CandidateInterviewDetailResponse;
 import com.example.grpcdemo.controller.dto.CandidateInterviewCompleteRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewInvitationItem;
@@ -302,19 +303,19 @@ public class CandidateInterviewPortalService {
             metadata = readGenericMap(record.getMetadataJson());
         }
         Instant now = Instant.now();
-        if (record.getInterviewStartedAt() == null) {
-            record.setInterviewStartedAt(now);
-        }
-        if (record.getAnswerDeadlineAt() == null && record.getInterviewStartedAt() != null) {
-            record.setAnswerDeadlineAt(record.getInterviewStartedAt().plus(ANSWER_TIME_LIMIT));
+        if (record.getRoomEnteredAt() == null) {
+            record.setRoomEnteredAt(now);
         }
         if (!StringUtils.hasText(record.getInterviewMode())) {
             record.setInterviewMode("AI_VIDEO");
         }
         record = interviewRecordRepository.save(record);
 
-        candidate.setInterviewStatus(JobCandidateInterviewStatus.IN_PROGRESS);
         candidate.setInterviewRecordId(record.getRecordId());
+        if (record.getInterviewStartedAt() != null
+                && candidate.getInterviewStatus() != JobCandidateInterviewStatus.IN_PROGRESS) {
+            candidate.setInterviewStatus(JobCandidateInterviewStatus.IN_PROGRESS);
+        }
         candidate.setUpdatedAt(now);
         candidateRepository.save(candidate);
 
@@ -325,6 +326,44 @@ public class CandidateInterviewPortalService {
         response.setAnswerDeadlineAt(record.getAnswerDeadlineAt());
         response.setQuestions(questions);
         response.setMetadata(metadata);
+        return response;
+    }
+
+    @Transactional
+    public CandidateInterviewBeginResponse beginAnswering(String jobCandidateId) {
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "邀约不存在"));
+        if (candidate.getInterviewStatus() == JobCandidateInterviewStatus.COMPLETED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.ABANDONED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.CANCELLED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT) {
+            throw new ResponseStatusException(HttpStatus.GONE, "面试已结束，请重新预约");
+        }
+        CandidateInterviewRecordEntity record = interviewRecordRepository
+                .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "请先进入面试房间"));
+        record = ensureActiveInterviewWindow(candidate, record, true);
+        if (record.getProfilePhotoData() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先上传个人照片");
+        }
+        Instant now = Instant.now();
+        if (record.getInterviewStartedAt() == null) {
+            record.setInterviewStartedAt(now);
+        }
+        if (record.getAnswerDeadlineAt() == null && record.getInterviewStartedAt() != null) {
+            record.setAnswerDeadlineAt(record.getInterviewStartedAt().plus(ANSWER_TIME_LIMIT));
+        }
+        record = interviewRecordRepository.save(record);
+
+        candidate.setInterviewRecordId(record.getRecordId());
+        candidate.setInterviewStatus(JobCandidateInterviewStatus.IN_PROGRESS);
+        candidate.setUpdatedAt(now);
+        candidateRepository.save(candidate);
+
+        CandidateInterviewBeginResponse response = new CandidateInterviewBeginResponse();
+        response.setInterviewRecordId(record.getRecordId());
+        response.setInterviewStartedAt(record.getInterviewStartedAt());
+        response.setAnswerDeadlineAt(record.getAnswerDeadlineAt());
         return response;
     }
 
@@ -342,6 +381,9 @@ public class CandidateInterviewPortalService {
         record = ensureActiveInterviewWindow(candidate, record, true);
         if (record.getProfilePhotoData() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先上传个人照片");
+        }
+        if (record.getInterviewStartedAt() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先点击开始录音");
         }
         byte[] data;
         try {
@@ -638,11 +680,14 @@ public class CandidateInterviewPortalService {
         item.setInterviewDeadlineAt(candidate.getInterviewDeadlineAt());
         item.setInterviewCompletedAt(candidate.getInterviewCompletedAt());
         item.setUpdatedAt(candidate.getUpdatedAt());
+        item.setCandidateEmail(candidate.getCandidateEmail());
         if (record != null) {
             item.setPrecheckPassed("PASSED".equalsIgnoreCase(record.getPrecheckStatus()));
             item.setProfilePhotoUploaded(record.getProfilePhotoData() != null);
             item.setAnswerDeadlineAt(record.getAnswerDeadlineAt());
+            item.setProfilePhoto(toProfilePhotoDto(record, candidate));
         }
+        item.setFailureReason(resolveFailureReason(candidate, record));
         return item;
     }
 
@@ -653,6 +698,49 @@ public class CandidateInterviewPortalService {
         String normalized = keyword.trim().toLowerCase(Locale.ROOT);
         return (item.getPositionName() != null && item.getPositionName().toLowerCase(Locale.ROOT).contains(normalized))
                 || (item.getCompanyName() != null && item.getCompanyName().toLowerCase(Locale.ROOT).contains(normalized));
+    }
+
+    private String resolveFailureReason(CompanyJobCandidateEntity candidate, CandidateInterviewRecordEntity record) {
+        if (candidate == null) {
+            return null;
+        }
+        JobCandidateInterviewStatus status = candidate.getInterviewStatus();
+        if (status == null) {
+            return null;
+        }
+        switch (status) {
+            case ABANDONED:
+                String abandonReason = extractAbandonReason(record);
+                return StringUtils.hasText(abandonReason) ? abandonReason : "候选人已放弃面试";
+            case CANCELLED:
+                return "企业已取消本场面试";
+            case TIMED_OUT:
+                return "候选人在规定时间内未完成面试";
+            default:
+                break;
+        }
+        if ((status == JobCandidateInterviewStatus.SCHEDULED || status == JobCandidateInterviewStatus.NOT_INTERVIEWED)
+                && record != null
+                && StringUtils.hasText(record.getPrecheckStatus())
+                && !"PASSED".equalsIgnoreCase(record.getPrecheckStatus())) {
+            return "设备检测未通过";
+        }
+        return null;
+    }
+
+    private String extractAbandonReason(CandidateInterviewRecordEntity record) {
+        if (record == null) {
+            return null;
+        }
+        Map<String, Object> metadata = readGenericMap(record.getMetadataJson());
+        Object abandon = metadata.get("abandon");
+        if (abandon instanceof Map<?, ?> abandonMap) {
+            Object reason = abandonMap.get("reason");
+            if (reason instanceof String reasonText && StringUtils.hasText(reasonText)) {
+                return reasonText;
+            }
+        }
+        return null;
     }
 
     private List<CandidateInterviewStatusCounter> buildStatusCounters(List<CompanyJobCandidateEntity> candidates) {

@@ -273,6 +273,7 @@ CREATE TABLE IF NOT EXISTS public.candidate_interview_records (
     precheck_status       varchar(32),
     precheck_report_json  text,
     precheck_completed_at timestamptz,
+    room_entered_at       timestamptz,
     interview_started_at  timestamptz,
     interview_ended_at    timestamptz,
     answer_deadline_at    timestamptz,
