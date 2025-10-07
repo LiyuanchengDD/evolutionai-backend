@@ -40,7 +40,10 @@ examples and rendering notes that map each API to the UI mockups.
 此前在 macOS 上曾因 protobuf 插件尝试扫描所有依赖 JAR 内的 `.proto` 文件而导致
 `Proto path element is not a directory` 错误。现在构建流程已调整为仅使用本地 proto
 定义，因此上述命令（或任何标准 Maven 生命周期命令，例如 `./mvnw clean package`）
-在 macOS 与 Linux 环境下都能顺利通过。
+在 macOS 与 Linux 环境下都能顺利通过。此外，`pom.xml` 中新增的构建标记会确保
+同一 Maven 会话内的第二次 `generate-sources`（例如 `mvn clean generate-sources -DskipTests compile`
+这类组合命令）自动跳过重复的 protobuf 清理步骤，避免旧版本在 macOS 上偶发的
+`Unable to clean up temporary proto file directory` 构建失败。
 
 > **Note (2025-02)**
 >
