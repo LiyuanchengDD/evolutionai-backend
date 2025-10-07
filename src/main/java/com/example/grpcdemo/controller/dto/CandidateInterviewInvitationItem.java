@@ -30,6 +30,7 @@ public class CandidateInterviewInvitationItem {
     private Instant updatedAt;
     private Boolean precheckPassed;
     private Boolean profilePhotoUploaded;
+    private Instant answerDeadlineAt;
 
     public String getJobCandidateId() {
         return jobCandidateId;
@@ -189,6 +190,14 @@ public class CandidateInterviewInvitationItem {
 
     public void setProfilePhotoUploaded(Boolean profilePhotoUploaded) {
         this.profilePhotoUploaded = profilePhotoUploaded;
+    }
+
+    public Instant getAnswerDeadlineAt() {
+        return answerDeadlineAt;
+    }
+
+    public void setAnswerDeadlineAt(Instant answerDeadlineAt) {
+        this.answerDeadlineAt = answerDeadlineAt;
     }
 }
 

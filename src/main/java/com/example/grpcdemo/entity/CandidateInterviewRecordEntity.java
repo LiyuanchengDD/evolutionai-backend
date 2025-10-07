@@ -49,6 +49,9 @@ public class CandidateInterviewRecordEntity {
     @Column(name = "interview_ended_at")
     private Instant interviewEndedAt;
 
+    @Column(name = "answer_deadline_at")
+    private Instant answerDeadlineAt;
+
     @Column(name = "duration_seconds")
     private Integer durationSeconds;
 
@@ -183,6 +186,14 @@ public class CandidateInterviewRecordEntity {
 
     public void setInterviewEndedAt(Instant interviewEndedAt) {
         this.interviewEndedAt = interviewEndedAt;
+    }
+
+    public Instant getAnswerDeadlineAt() {
+        return answerDeadlineAt;
+    }
+
+    public void setAnswerDeadlineAt(Instant answerDeadlineAt) {
+        this.answerDeadlineAt = answerDeadlineAt;
     }
 
     public Integer getDurationSeconds() {

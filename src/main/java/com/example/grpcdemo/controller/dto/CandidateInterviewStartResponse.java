@@ -12,6 +12,7 @@ public class CandidateInterviewStartResponse {
     private String interviewRecordId;
     private String aiSessionId;
     private Instant interviewStartedAt;
+    private Instant answerDeadlineAt;
     private List<CandidateInterviewQuestionDto> questions;
     private Map<String, Object> metadata;
 
@@ -37,6 +38,14 @@ public class CandidateInterviewStartResponse {
 
     public void setInterviewStartedAt(Instant interviewStartedAt) {
         this.interviewStartedAt = interviewStartedAt;
+    }
+
+    public Instant getAnswerDeadlineAt() {
+        return answerDeadlineAt;
+    }
+
+    public void setAnswerDeadlineAt(Instant answerDeadlineAt) {
+        this.answerDeadlineAt = answerDeadlineAt;
     }
 
     public List<CandidateInterviewQuestionDto> getQuestions() {

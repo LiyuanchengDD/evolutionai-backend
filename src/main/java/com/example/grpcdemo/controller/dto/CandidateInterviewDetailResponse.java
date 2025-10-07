@@ -1,5 +1,6 @@
 package com.example.grpcdemo.controller.dto;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -10,6 +11,7 @@ public class CandidateInterviewDetailResponse {
     private CandidateInterviewInvitationItem invitation;
     private CandidateInterviewRecordResponse record;
     private List<CandidateInterviewTechnicalRequirementDto> requirements;
+    private Instant answerDeadlineAt;
     private boolean readyForInterview;
     private boolean precheckPassed;
     private boolean profilePhotoUploaded;
@@ -36,6 +38,14 @@ public class CandidateInterviewDetailResponse {
 
     public void setRequirements(List<CandidateInterviewTechnicalRequirementDto> requirements) {
         this.requirements = requirements;
+    }
+
+    public Instant getAnswerDeadlineAt() {
+        return answerDeadlineAt;
+    }
+
+    public void setAnswerDeadlineAt(Instant answerDeadlineAt) {
+        this.answerDeadlineAt = answerDeadlineAt;
     }
 
     public boolean isReadyForInterview() {
