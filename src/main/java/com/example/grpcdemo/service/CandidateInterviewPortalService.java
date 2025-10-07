@@ -433,8 +433,9 @@ public class CandidateInterviewPortalService {
         boolean timedOut = candidate.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT;
         Instant effectiveEnd = now;
         if (timedOut) {
+            final Instant answerDeadlineAt = record.getAnswerDeadlineAt();
             effectiveEnd = Optional.ofNullable(record.getInterviewEndedAt())
-                    .orElseGet(() -> Optional.ofNullable(record.getAnswerDeadlineAt()).orElse(now));
+                    .orElseGet(() -> Optional.ofNullable(answerDeadlineAt).orElse(now));
             if (record.getInterviewEndedAt() == null || record.getInterviewEndedAt().isBefore(effectiveEnd)) {
                 record.setInterviewEndedAt(effectiveEnd);
             }
