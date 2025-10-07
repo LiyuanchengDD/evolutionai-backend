@@ -179,7 +179,7 @@
         <protocArtifact>
           com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
         </protocArtifact>
-        <cleanOutputDirectory>true</cleanOutputDirectory>
+        <clearOutputDirectory>true</clearOutputDirectory>
       </configuration>
       <executions>
         <execution>
@@ -197,7 +197,7 @@
           <configuration>
             <pluginId>grpc-java</pluginId>
             <pluginArtifact>
-              io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
+              io.grpc:protoc-gen-grpc-java:${grpc.version}
             </pluginArtifact>
           </configuration>
         </execution>
