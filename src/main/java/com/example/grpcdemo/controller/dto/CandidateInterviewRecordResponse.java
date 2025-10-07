@@ -23,6 +23,9 @@ public class CandidateInterviewRecordResponse {
     private List<CandidateInterviewAudioDto> audios;
     private String transcriptRaw;
     private Map<String, Object> metadata;
+    private Integer currentQuestionSequence;
+    private CandidateInterviewPrecheckDto precheck;
+    private CandidateInterviewProfilePhotoDto profilePhoto;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -120,6 +123,30 @@ public class CandidateInterviewRecordResponse {
 
     public void setAudios(List<CandidateInterviewAudioDto> audios) {
         this.audios = audios;
+    }
+
+    public Integer getCurrentQuestionSequence() {
+        return currentQuestionSequence;
+    }
+
+    public void setCurrentQuestionSequence(Integer currentQuestionSequence) {
+        this.currentQuestionSequence = currentQuestionSequence;
+    }
+
+    public CandidateInterviewPrecheckDto getPrecheck() {
+        return precheck;
+    }
+
+    public void setPrecheck(CandidateInterviewPrecheckDto precheck) {
+        this.precheck = precheck;
+    }
+
+    public CandidateInterviewProfilePhotoDto getProfilePhoto() {
+        return profilePhoto;
+    }
+
+    public void setProfilePhoto(CandidateInterviewProfilePhotoDto profilePhoto) {
+        this.profilePhoto = profilePhoto;
     }
 
     public String getTranscriptRaw() {

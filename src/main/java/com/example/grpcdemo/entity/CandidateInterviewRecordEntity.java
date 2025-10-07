@@ -33,6 +33,16 @@ public class CandidateInterviewRecordEntity {
     @Column(name = "ai_session_id", length = 64)
     private String aiSessionId;
 
+    @Column(name = "precheck_status", length = 32)
+    private String precheckStatus;
+
+    @Lob
+    @Column(name = "precheck_report_json")
+    private String precheckReportJson;
+
+    @Column(name = "precheck_completed_at")
+    private Instant precheckCompletedAt;
+
     @Column(name = "interview_started_at")
     private Instant interviewStartedAt;
 
@@ -41,6 +51,9 @@ public class CandidateInterviewRecordEntity {
 
     @Column(name = "duration_seconds")
     private Integer durationSeconds;
+
+    @Column(name = "current_question_sequence")
+    private Integer currentQuestionSequence;
 
     @Lob
     @Column(name = "questions_json")
@@ -53,6 +66,22 @@ public class CandidateInterviewRecordEntity {
     @Lob
     @Column(name = "metadata_json")
     private String metadataJson;
+
+    @Lob
+    @Column(name = "profile_photo_data")
+    private byte[] profilePhotoData;
+
+    @Column(name = "profile_photo_file_name", length = 255)
+    private String profilePhotoFileName;
+
+    @Column(name = "profile_photo_content_type", length = 100)
+    private String profilePhotoContentType;
+
+    @Column(name = "profile_photo_size_bytes")
+    private Long profilePhotoSizeBytes;
+
+    @Column(name = "profile_photo_uploaded_at")
+    private Instant profilePhotoUploadedAt;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -116,6 +145,30 @@ public class CandidateInterviewRecordEntity {
         this.aiSessionId = aiSessionId;
     }
 
+    public String getPrecheckStatus() {
+        return precheckStatus;
+    }
+
+    public void setPrecheckStatus(String precheckStatus) {
+        this.precheckStatus = precheckStatus;
+    }
+
+    public String getPrecheckReportJson() {
+        return precheckReportJson;
+    }
+
+    public void setPrecheckReportJson(String precheckReportJson) {
+        this.precheckReportJson = precheckReportJson;
+    }
+
+    public Instant getPrecheckCompletedAt() {
+        return precheckCompletedAt;
+    }
+
+    public void setPrecheckCompletedAt(Instant precheckCompletedAt) {
+        this.precheckCompletedAt = precheckCompletedAt;
+    }
+
     public Instant getInterviewStartedAt() {
         return interviewStartedAt;
     }
@@ -140,6 +193,14 @@ public class CandidateInterviewRecordEntity {
         this.durationSeconds = durationSeconds;
     }
 
+    public Integer getCurrentQuestionSequence() {
+        return currentQuestionSequence;
+    }
+
+    public void setCurrentQuestionSequence(Integer currentQuestionSequence) {
+        this.currentQuestionSequence = currentQuestionSequence;
+    }
+
     public String getQuestionsJson() {
         return questionsJson;
     }
@@ -162,6 +223,46 @@ public class CandidateInterviewRecordEntity {
 
     public void setMetadataJson(String metadataJson) {
         this.metadataJson = metadataJson;
+    }
+
+    public byte[] getProfilePhotoData() {
+        return profilePhotoData;
+    }
+
+    public void setProfilePhotoData(byte[] profilePhotoData) {
+        this.profilePhotoData = profilePhotoData;
+    }
+
+    public String getProfilePhotoFileName() {
+        return profilePhotoFileName;
+    }
+
+    public void setProfilePhotoFileName(String profilePhotoFileName) {
+        this.profilePhotoFileName = profilePhotoFileName;
+    }
+
+    public String getProfilePhotoContentType() {
+        return profilePhotoContentType;
+    }
+
+    public void setProfilePhotoContentType(String profilePhotoContentType) {
+        this.profilePhotoContentType = profilePhotoContentType;
+    }
+
+    public Long getProfilePhotoSizeBytes() {
+        return profilePhotoSizeBytes;
+    }
+
+    public void setProfilePhotoSizeBytes(Long profilePhotoSizeBytes) {
+        this.profilePhotoSizeBytes = profilePhotoSizeBytes;
+    }
+
+    public Instant getProfilePhotoUploadedAt() {
+        return profilePhotoUploadedAt;
+    }
+
+    public void setProfilePhotoUploadedAt(Instant profilePhotoUploadedAt) {
+        this.profilePhotoUploadedAt = profilePhotoUploadedAt;
     }
 
     public Instant getCreatedAt() {
