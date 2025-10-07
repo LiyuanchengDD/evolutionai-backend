@@ -275,6 +275,7 @@ CREATE TABLE IF NOT EXISTS public.candidate_interview_records (
     precheck_completed_at timestamptz,
     interview_started_at  timestamptz,
     interview_ended_at    timestamptz,
+    answer_deadline_at    timestamptz,
     duration_seconds      integer,
     current_question_sequence integer,
     questions_json        text,

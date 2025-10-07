@@ -41,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -72,6 +73,8 @@ public class CandidateInterviewPortalService {
     private static final String STATUS_ABANDONED = "ABANDONED";
     private static final String STATUS_CANCELLED = "CANCELLED";
     private static final String STATUS_TIMED_OUT = "TIMED_OUT";
+
+    private static final Duration ANSWER_TIME_LIMIT = Duration.ofMinutes(60);
 
     private static final Map<String, Set<JobCandidateInterviewStatus>> STATUS_GROUPS = Map.of(
             STATUS_WAITING, EnumSet.of(JobCandidateInterviewStatus.NOT_INTERVIEWED,
@@ -132,7 +135,7 @@ public class CandidateInterviewPortalService {
         this.locationCatalog = locationCatalog;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public CandidateInterviewInvitationListResponse listInvitations(String jobCandidateId,
                                                                    String statusCode,
                                                                    String keyword,
@@ -177,7 +180,7 @@ public class CandidateInterviewPortalService {
         return response;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public CandidateInterviewDetailResponse getInvitationDetail(String jobCandidateId, Locale locale) {
         CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "邀约不存在"));
@@ -188,6 +191,7 @@ public class CandidateInterviewPortalService {
         CandidateInterviewRecordEntity record = interviewRecordRepository
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElse(null);
+        record = ensureActiveInterviewWindow(candidate, record, false);
         List<CandidateInterviewAudioEntity> audios = record == null ? Collections.emptyList()
                 : interviewAudioRepository
                 .findByJobCandidateIdAndInterviewRecordIdOrderByQuestionSequenceAscCreatedAtAsc(jobCandidateId, record.getRecordId());
@@ -208,6 +212,7 @@ public class CandidateInterviewPortalService {
         response.setRequirements(extractRequirements(record));
         response.setPrecheckPassed(record != null && "PASSED".equalsIgnoreCase(record.getPrecheckStatus()));
         response.setProfilePhotoUploaded(record != null && record.getProfilePhotoData() != null);
+        response.setAnswerDeadlineAt(record != null ? record.getAnswerDeadlineAt() : null);
         response.setReadyForInterview(response.isPrecheckPassed() && response.isProfilePhotoUploaded());
         return response;
     }
@@ -257,9 +262,16 @@ public class CandidateInterviewPortalService {
                                                           CandidateInterviewStartRequest request) {
         CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "邀约不存在"));
+        if (candidate.getInterviewStatus() == JobCandidateInterviewStatus.COMPLETED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.ABANDONED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.CANCELLED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT) {
+            throw new ResponseStatusException(HttpStatus.GONE, "面试已结束，请重新预约");
+        }
         CandidateInterviewRecordEntity record = interviewRecordRepository
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "请先完成设备检测"));
+        record = ensureActiveInterviewWindow(candidate, record, true);
         if (!"PASSED".equalsIgnoreCase(record.getPrecheckStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "麦克风检测未通过");
         }
@@ -289,23 +301,28 @@ public class CandidateInterviewPortalService {
             questions = readQuestionList(record.getQuestionsJson());
             metadata = readGenericMap(record.getMetadataJson());
         }
+        Instant now = Instant.now();
         if (record.getInterviewStartedAt() == null) {
-            record.setInterviewStartedAt(Instant.now());
+            record.setInterviewStartedAt(now);
+        }
+        if (record.getAnswerDeadlineAt() == null && record.getInterviewStartedAt() != null) {
+            record.setAnswerDeadlineAt(record.getInterviewStartedAt().plus(ANSWER_TIME_LIMIT));
         }
         if (!StringUtils.hasText(record.getInterviewMode())) {
             record.setInterviewMode("AI_VIDEO");
         }
-        interviewRecordRepository.save(record);
+        record = interviewRecordRepository.save(record);
 
         candidate.setInterviewStatus(JobCandidateInterviewStatus.IN_PROGRESS);
         candidate.setInterviewRecordId(record.getRecordId());
-        candidate.setUpdatedAt(Instant.now());
+        candidate.setUpdatedAt(now);
         candidateRepository.save(candidate);
 
         CandidateInterviewStartResponse response = new CandidateInterviewStartResponse();
         response.setInterviewRecordId(record.getRecordId());
         response.setAiSessionId(record.getAiSessionId());
         response.setInterviewStartedAt(record.getInterviewStartedAt());
+        response.setAnswerDeadlineAt(record.getAnswerDeadlineAt());
         response.setQuestions(questions);
         response.setMetadata(metadata);
         return response;
@@ -322,6 +339,7 @@ public class CandidateInterviewPortalService {
         CandidateInterviewRecordEntity record = interviewRecordRepository
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "尚未创建面试记录"));
+        record = ensureActiveInterviewWindow(candidate, record, true);
         if (record.getProfilePhotoData() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先上传个人照片");
         }
@@ -343,10 +361,11 @@ public class CandidateInterviewPortalService {
 
         record.setCurrentQuestionSequence(request.getQuestionSequence());
         record.setTranscriptJson(updateTranscript(record.getTranscriptJson(), request));
-        interviewRecordRepository.save(record);
+        record = interviewRecordRepository.save(record);
 
+        Instant now = Instant.now();
         candidate.setInterviewStatus(JobCandidateInterviewStatus.IN_PROGRESS);
-        candidate.setUpdatedAt(Instant.now());
+        candidate.setUpdatedAt(now);
         candidateRepository.save(candidate);
 
         CandidateInterviewAnswerResponse response = new CandidateInterviewAnswerResponse();
@@ -367,6 +386,7 @@ public class CandidateInterviewPortalService {
         CandidateInterviewRecordEntity record = interviewRecordRepository
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "尚未创建面试记录"));
+        record = ensureActiveInterviewWindow(candidate, record, true);
         Instant now = Instant.now();
         record.setInterviewEndedAt(now);
         if (request != null && request.getDurationSeconds() != null) {
@@ -453,6 +473,7 @@ public class CandidateInterviewPortalService {
                     entity.setJobCandidateId(jobCandidateId);
                     return entity;
                 });
+        record = ensureActiveInterviewWindow(candidate, record, true);
         byte[] data;
         try {
             data = Base64.getDecoder().decode(request.getBase64Content());
@@ -590,6 +611,7 @@ public class CandidateInterviewPortalService {
         if (position == null) {
             return null;
         }
+        record = ensureActiveInterviewWindow(candidate, record, false);
         CompanyProfileEntity company = companies.get(position.getCompanyId());
         CandidateInterviewInvitationItem item = new CandidateInterviewInvitationItem();
         item.setJobCandidateId(candidate.getJobCandidateId());
@@ -619,6 +641,7 @@ public class CandidateInterviewPortalService {
         if (record != null) {
             item.setPrecheckPassed("PASSED".equalsIgnoreCase(record.getPrecheckStatus()));
             item.setProfilePhotoUploaded(record.getProfilePhotoData() != null);
+            item.setAnswerDeadlineAt(record.getAnswerDeadlineAt());
         }
         return item;
     }
@@ -673,6 +696,55 @@ public class CandidateInterviewPortalService {
         return STATUS_ALL;
     }
 
+    private CandidateInterviewRecordEntity ensureActiveInterviewWindow(CompanyJobCandidateEntity candidate,
+                                                                       CandidateInterviewRecordEntity record,
+                                                                       boolean throwIfExpired) {
+        if (record == null) {
+            return null;
+        }
+        Instant start = record.getInterviewStartedAt();
+        if (start == null) {
+            return record;
+        }
+        Instant deadline = record.getAnswerDeadlineAt();
+        boolean recordChanged = false;
+        if (deadline == null) {
+            deadline = start.plus(ANSWER_TIME_LIMIT);
+            record.setAnswerDeadlineAt(deadline);
+            recordChanged = true;
+        }
+        Instant now = Instant.now();
+        if (!now.isBefore(deadline)) {
+            if (record.getInterviewEndedAt() == null) {
+                record.setInterviewEndedAt(deadline);
+                recordChanged = true;
+            }
+            if (record.getDurationSeconds() == null) {
+                record.setDurationSeconds(Math.toIntExact(ChronoUnit.SECONDS.between(start, deadline)));
+                recordChanged = true;
+            }
+            if (recordChanged) {
+                record = interviewRecordRepository.save(record);
+                recordChanged = false;
+            }
+            if (candidate.getInterviewStatus() != JobCandidateInterviewStatus.COMPLETED
+                    && candidate.getInterviewStatus() != JobCandidateInterviewStatus.ABANDONED
+                    && candidate.getInterviewStatus() != JobCandidateInterviewStatus.CANCELLED
+                    && candidate.getInterviewStatus() != JobCandidateInterviewStatus.TIMED_OUT) {
+                candidate.setInterviewStatus(JobCandidateInterviewStatus.TIMED_OUT);
+                candidate.setInterviewCompletedAt(deadline);
+                candidate.setUpdatedAt(now);
+                candidateRepository.save(candidate);
+            }
+            if (throwIfExpired) {
+                throw new ResponseStatusException(HttpStatus.GONE, "答题时间已结束，请重新预约面试");
+            }
+        } else if (recordChanged) {
+            record = interviewRecordRepository.save(record);
+        }
+        return record;
+    }
+
     private CandidateInterviewRecordResponse toRecordResponse(CandidateInterviewRecordEntity entity,
                                                               CompanyJobCandidateEntity candidate,
                                                               CompanyRecruitingPositionEntity position,
@@ -692,6 +764,7 @@ public class CandidateInterviewPortalService {
         }
         response.setInterviewStartedAt(entity.getInterviewStartedAt());
         response.setInterviewEndedAt(entity.getInterviewEndedAt());
+        response.setAnswerDeadlineAt(entity.getAnswerDeadlineAt());
         response.setDurationSeconds(entity.getDurationSeconds());
         response.setCurrentQuestionSequence(entity.getCurrentQuestionSequence());
         response.setQuestions(readQuestionList(entity.getQuestionsJson()));

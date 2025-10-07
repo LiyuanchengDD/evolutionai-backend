@@ -18,6 +18,7 @@ public class CandidateInterviewRecordResponse {
     private String positionName;
     private Instant interviewStartedAt;
     private Instant interviewEndedAt;
+    private Instant answerDeadlineAt;
     private Integer durationSeconds;
     private List<CandidateInterviewQuestionDto> questions;
     private List<CandidateInterviewAudioDto> audios;
@@ -99,6 +100,14 @@ public class CandidateInterviewRecordResponse {
 
     public void setInterviewEndedAt(Instant interviewEndedAt) {
         this.interviewEndedAt = interviewEndedAt;
+    }
+
+    public Instant getAnswerDeadlineAt() {
+        return answerDeadlineAt;
+    }
+
+    public void setAnswerDeadlineAt(Instant answerDeadlineAt) {
+        this.answerDeadlineAt = answerDeadlineAt;
     }
 
     public Integer getDurationSeconds() {
