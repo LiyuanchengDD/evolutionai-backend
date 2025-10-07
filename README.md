@@ -9,6 +9,27 @@ See the [Front-end Integration Guide](docs/frontend-integration.md) for the
 request/response payloads that front-end clients should send to invoke the gRPC
 services such as `AuthServiceImpl` and `CandidateServiceImpl`.
 
+## Candidate interview portal overview
+
+The candidate self-service interview portal is exposed via
+`CandidateInterviewController` and its companion service.  The REST layer powers
+the five UI states shown in the product design: invitation list, pre-check,
+interview room, completion summary, and abandonment confirmation.  All payloads
+and workflow details are documented in the bilingual specification
+《[技术接口文档&数据库基本结构](技术接口文档&数据库基本结构.md)》, including:
+
+* Invitation filtering/search APIs, status counters, and card metadata.
+* Device pre-check submission, interview start handshake, and AI question
+  retrieval via `InterviewQuestionClient`.
+* Answer streaming/recording contracts (audio upload, transcript JSON, progress
+  management) as well as completion/abandon endpoints.
+* Database schema changes covering interview records, per-question audio blobs,
+  and pre-check/profile photo metadata persisted alongside candidate status.
+
+Front-end teams should pair that document with
+`docs/frontend-integration.md#candidate-interview-portal` for concrete request
+examples and rendering notes that map each API to the UI mockups.
+
 ## Building the project
 
 ```bash

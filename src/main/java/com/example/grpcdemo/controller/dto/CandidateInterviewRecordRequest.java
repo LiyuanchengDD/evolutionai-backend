@@ -36,6 +36,20 @@ public class CandidateInterviewRecordRequest {
     @Valid
     private List<CandidateInterviewAudioRequest> audios;
 
+    private Integer currentQuestionSequence;
+
+    /**
+     * 面试前硬件检测结果。
+     */
+    @Valid
+    private CandidateInterviewPrecheckDto precheck;
+
+    /**
+     * 头像上传请求，若 `remove=true` 表示清空头像。
+     */
+    @Valid
+    private CandidateInterviewProfilePhotoRequest profilePhoto;
+
     /**
      * 对话/语音转写等完整原始数据，JSON 字符串。
      */
@@ -116,6 +130,30 @@ public class CandidateInterviewRecordRequest {
 
     public void setAudios(List<CandidateInterviewAudioRequest> audios) {
         this.audios = audios;
+    }
+
+    public Integer getCurrentQuestionSequence() {
+        return currentQuestionSequence;
+    }
+
+    public void setCurrentQuestionSequence(Integer currentQuestionSequence) {
+        this.currentQuestionSequence = currentQuestionSequence;
+    }
+
+    public CandidateInterviewPrecheckDto getPrecheck() {
+        return precheck;
+    }
+
+    public void setPrecheck(CandidateInterviewPrecheckDto precheck) {
+        this.precheck = precheck;
+    }
+
+    public CandidateInterviewProfilePhotoRequest getProfilePhoto() {
+        return profilePhoto;
+    }
+
+    public void setProfilePhoto(CandidateInterviewProfilePhotoRequest profilePhoto) {
+        this.profilePhoto = profilePhoto;
     }
 
     public String getTranscriptRaw() {

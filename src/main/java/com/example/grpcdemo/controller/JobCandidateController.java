@@ -103,6 +103,26 @@ public class JobCandidateController {
                 .body(resource);
     }
 
+    @GetMapping("/{jobCandidateId}/interview-record/profile-photo")
+    public ResponseEntity<ByteArrayResource> interviewProfilePhoto(@PathVariable("jobCandidateId") String jobCandidateId) {
+        CompanyJobCandidateService.InterviewProfilePhotoPayload photo = candidateService.getInterviewProfilePhoto(jobCandidateId);
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(photo.fileType());
+        } catch (InvalidMediaTypeException e) {
+            mediaType = MediaType.IMAGE_JPEG;
+        }
+        ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                .filename(photo.fileName(), StandardCharsets.UTF_8)
+                .build();
+        ByteArrayResource resource = new ByteArrayResource(photo.content());
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .contentLength(photo.content().length)
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                .body(resource);
+    }
+
     @PutMapping("/{jobCandidateId}/interview-record")
     public CandidateInterviewRecordResponse upsertInterviewRecord(@PathVariable("jobCandidateId") String jobCandidateId,
                                                                   @Valid @RequestBody(required = false) CandidateInterviewRecordRequest request) {

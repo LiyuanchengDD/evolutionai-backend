@@ -39,4 +39,8 @@ public interface CompanyJobCandidateRepository extends JpaRepository<CompanyJobC
     long countByPositionId(String positionId);
 
     Optional<CompanyJobCandidateEntity> findByJobCandidateIdAndPositionId(String jobCandidateId, String positionId);
+
+    List<CompanyJobCandidateEntity> findByCandidateEmailIgnoreCase(String candidateEmail);
+
+    List<CompanyJobCandidateEntity> findByCandidatePhone(String candidatePhone);
 }

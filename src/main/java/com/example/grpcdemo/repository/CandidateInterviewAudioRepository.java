@@ -16,5 +16,8 @@ public interface CandidateInterviewAudioRepository extends JpaRepository<Candida
 
     Optional<CandidateInterviewAudioEntity> findByAudioIdAndJobCandidateId(String audioId, String jobCandidateId);
 
+    Optional<CandidateInterviewAudioEntity> findByInterviewRecordIdAndQuestionSequence(String interviewRecordId,
+                                                                                       Integer questionSequence);
+
     void deleteByInterviewRecordId(String interviewRecordId);
 }

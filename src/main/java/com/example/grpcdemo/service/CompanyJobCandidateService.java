@@ -7,6 +7,9 @@ import com.example.grpcdemo.controller.dto.CandidateInterviewAudioRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewQuestionDto;
 import com.example.grpcdemo.controller.dto.CandidateInterviewRecordRequest;
 import com.example.grpcdemo.controller.dto.CandidateInterviewRecordResponse;
+import com.example.grpcdemo.controller.dto.CandidateInterviewPrecheckDto;
+import com.example.grpcdemo.controller.dto.CandidateInterviewProfilePhotoDto;
+import com.example.grpcdemo.controller.dto.CandidateInterviewProfilePhotoRequest;
 import com.example.grpcdemo.controller.dto.JobCandidateImportResponse;
 import com.example.grpcdemo.controller.dto.JobCandidateInviteRequest;
 import com.example.grpcdemo.controller.dto.JobCandidateItemResponse;
@@ -318,6 +321,29 @@ public class CompanyJobCandidateService {
         return new InterviewAudioPayload(fileName, contentType, data);
     }
 
+    @Transactional(readOnly = true)
+    public InterviewProfilePhotoPayload getInterviewProfilePhoto(String jobCandidateId) {
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "候选人不存在"));
+        CandidateInterviewRecordEntity record = interviewRecordRepository
+                .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到面试记录"));
+        byte[] data = record.getProfilePhotoData();
+        if (data == null || data.length == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "未上传头像");
+        }
+        String contentType = StringUtils.hasText(record.getProfilePhotoContentType())
+                ? record.getProfilePhotoContentType()
+                : "image/jpeg";
+        String fileName = record.getProfilePhotoFileName();
+        if (!StringUtils.hasText(fileName)) {
+            fileName = (StringUtils.hasText(candidate.getCandidateName())
+                    ? candidate.getCandidateName().replaceAll("\\s+", "_")
+                    : "profile") + ".jpg";
+        }
+        return new InterviewProfilePhotoPayload(fileName, contentType, data);
+    }
+
     @Transactional
     public JobCandidateItemResponse updateCandidate(String jobCandidateId, JobCandidateUpdateRequest request) {
         CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
@@ -462,6 +488,9 @@ public class CompanyJobCandidateService {
             entity.setQuestionsJson(writeJson(request.getQuestions(), "序列化面试题目失败"));
             entity.setTranscriptJson(request.getTranscriptRaw());
             entity.setMetadataJson(writeJson(request.getMetadata(), "序列化面试元数据失败"));
+            entity.setCurrentQuestionSequence(request.getCurrentQuestionSequence());
+            applyPrecheck(entity, request.getPrecheck());
+            applyProfilePhoto(entity, request.getProfilePhoto());
         }
         CandidateInterviewRecordEntity saved = interviewRecordRepository.save(entity);
 
@@ -581,6 +610,9 @@ public class CompanyJobCandidateService {
                 .toList());
         response.setTranscriptRaw(entity.getTranscriptJson());
         response.setMetadata(readGenericMap(entity.getMetadataJson()));
+        response.setCurrentQuestionSequence(entity.getCurrentQuestionSequence());
+        response.setPrecheck(toPrecheckDto(entity));
+        response.setProfilePhoto(toProfilePhotoDto(entity));
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
         return response;
@@ -597,6 +629,90 @@ public class CompanyJobCandidateService {
         dto.setTranscript(entity.getTranscript());
         dto.setDownloadUrl(String.format("/api/enterprise/job-candidates/%s/interview-record/audios/%s",
                 entity.getJobCandidateId(), entity.getAudioId()));
+        return dto;
+    }
+
+    private void applyPrecheck(CandidateInterviewRecordEntity entity, CandidateInterviewPrecheckDto precheck) {
+        if (precheck == null) {
+            return;
+        }
+        if (StringUtils.hasText(precheck.getStatus())) {
+            entity.setPrecheckStatus(precheck.getStatus());
+        } else if (precheck.getPassed() != null) {
+            entity.setPrecheckStatus(precheck.getPassed() ? "PASSED" : "FAILED");
+        }
+        if (precheck.getCompletedAt() != null) {
+            entity.setPrecheckCompletedAt(precheck.getCompletedAt());
+        }
+        entity.setPrecheckReportJson(writeJson(precheck.getReport(), "序列化预检报告失败"));
+    }
+
+    private CandidateInterviewPrecheckDto toPrecheckDto(CandidateInterviewRecordEntity entity) {
+        if (!StringUtils.hasText(entity.getPrecheckStatus())
+                && entity.getPrecheckReportJson() == null
+                && entity.getPrecheckCompletedAt() == null) {
+            return null;
+        }
+        CandidateInterviewPrecheckDto dto = new CandidateInterviewPrecheckDto();
+        dto.setStatus(entity.getPrecheckStatus());
+        dto.setCompletedAt(entity.getPrecheckCompletedAt());
+        dto.setReport(readGenericMap(entity.getPrecheckReportJson()));
+        if (entity.getPrecheckStatus() != null) {
+            dto.setPassed("PASSED".equalsIgnoreCase(entity.getPrecheckStatus()));
+        }
+        return dto;
+    }
+
+    private void applyProfilePhoto(CandidateInterviewRecordEntity entity, CandidateInterviewProfilePhotoRequest request) {
+        if (request == null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(request.getRemove())) {
+            entity.setProfilePhotoData(null);
+            entity.setProfilePhotoFileName(null);
+            entity.setProfilePhotoContentType(null);
+            entity.setProfilePhotoSizeBytes(null);
+            entity.setProfilePhotoUploadedAt(null);
+            return;
+        }
+        if (!StringUtils.hasText(request.getBase64Content())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "头像内容不能为空");
+        }
+        byte[] data;
+        try {
+            data = Base64.getDecoder().decode(request.getBase64Content());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "头像内容不是有效的 Base64 编码", e);
+        }
+        entity.setProfilePhotoData(data);
+        entity.setProfilePhotoFileName(request.getFileName());
+        entity.setProfilePhotoContentType(StringUtils.hasText(request.getContentType())
+                ? request.getContentType()
+                : "image/jpeg");
+        long size = data.length;
+        if (request.getSizeBytes() != null) {
+            size = request.getSizeBytes();
+        }
+        entity.setProfilePhotoSizeBytes(size);
+        entity.setProfilePhotoUploadedAt(Instant.now());
+    }
+
+    private CandidateInterviewProfilePhotoDto toProfilePhotoDto(CandidateInterviewRecordEntity entity) {
+        if (entity.getProfilePhotoData() == null) {
+            return null;
+        }
+        CandidateInterviewProfilePhotoDto dto = new CandidateInterviewProfilePhotoDto();
+        dto.setFileName(entity.getProfilePhotoFileName());
+        dto.setContentType(StringUtils.hasText(entity.getProfilePhotoContentType())
+                ? entity.getProfilePhotoContentType()
+                : "image/jpeg");
+        dto.setSizeBytes(entity.getProfilePhotoSizeBytes() != null
+                ? entity.getProfilePhotoSizeBytes()
+                : (long) entity.getProfilePhotoData().length);
+        dto.setUploadedAt(entity.getProfilePhotoUploadedAt());
+        if (StringUtils.hasText(entity.getJobCandidateId()) && StringUtils.hasText(entity.getRecordId())) {
+            dto.setDownloadUrl(String.format("/api/enterprise/job-candidates/%s/interview-record/profile-photo", entity.getJobCandidateId()));
+        }
         return dto;
     }
 
@@ -984,5 +1100,8 @@ public class CompanyJobCandidateService {
     }
 
     public record InterviewAudioPayload(String fileName, String fileType, byte[] content) {
+    }
+
+    public record InterviewProfilePhotoPayload(String fileName, String fileType, byte[] content) {
     }
 }
