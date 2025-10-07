@@ -428,23 +428,51 @@ public class CandidateInterviewPortalService {
         CandidateInterviewRecordEntity record = interviewRecordRepository
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "尚未创建面试记录"));
-        record = ensureActiveInterviewWindow(candidate, record, true);
+        record = ensureActiveInterviewWindow(candidate, record, false);
         Instant now = Instant.now();
-        record.setInterviewEndedAt(now);
-        if (request != null && request.getDurationSeconds() != null) {
-            record.setDurationSeconds(request.getDurationSeconds());
-        } else if (record.getInterviewStartedAt() != null) {
-            record.setDurationSeconds(Math.toIntExact(ChronoUnit.SECONDS.between(record.getInterviewStartedAt(), now)));
+        boolean timedOut = candidate.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT;
+        Instant effectiveEnd = now;
+        if (timedOut) {
+            effectiveEnd = Optional.ofNullable(record.getInterviewEndedAt())
+                    .orElseGet(() -> Optional.ofNullable(record.getAnswerDeadlineAt()).orElse(now));
+            if (record.getInterviewEndedAt() == null || record.getInterviewEndedAt().isBefore(effectiveEnd)) {
+                record.setInterviewEndedAt(effectiveEnd);
+            }
+            if (record.getInterviewStartedAt() != null && record.getDurationSeconds() == null) {
+                record.setDurationSeconds(Math.toIntExact(ChronoUnit.SECONDS
+                        .between(record.getInterviewStartedAt(), effectiveEnd)));
+            }
+        } else {
+            record.setInterviewEndedAt(effectiveEnd);
+            if (request != null && request.getDurationSeconds() != null) {
+                record.setDurationSeconds(request.getDurationSeconds());
+            } else if (record.getInterviewStartedAt() != null) {
+                record.setDurationSeconds(Math.toIntExact(ChronoUnit.SECONDS
+                        .between(record.getInterviewStartedAt(), effectiveEnd)));
+            }
         }
+        Map<String, Object> metadata = new HashMap<>(readGenericMap(record.getMetadataJson()));
         if (request != null && request.getMetadata() != null) {
-            Map<String, Object> metadata = new HashMap<>(readGenericMap(record.getMetadataJson()));
             metadata.put("completion", request.getMetadata());
-            record.setMetadataJson(writeJson(metadata, "序列化面试元数据失败"));
         }
+        if (timedOut) {
+            metadata.put("timeout", Map.of(
+                    "deadline", Optional.ofNullable(record.getAnswerDeadlineAt()).orElse(effectiveEnd).toString(),
+                    "finalizedAt", now.toString()
+            ));
+        }
+        record.setMetadataJson(writeJson(metadata.isEmpty() ? null : metadata, "序列化面试元数据失败"));
         CandidateInterviewRecordEntity saved = interviewRecordRepository.save(record);
 
-        candidate.setInterviewStatus(JobCandidateInterviewStatus.COMPLETED);
-        candidate.setInterviewCompletedAt(now);
+        candidate.setInterviewRecordId(saved.getRecordId());
+        if (timedOut) {
+            if (candidate.getInterviewCompletedAt() == null) {
+                candidate.setInterviewCompletedAt(effectiveEnd);
+            }
+        } else {
+            candidate.setInterviewStatus(JobCandidateInterviewStatus.COMPLETED);
+            candidate.setInterviewCompletedAt(effectiveEnd);
+        }
         candidate.setUpdatedAt(now);
         candidateRepository.save(candidate);
 
@@ -863,6 +891,9 @@ public class CandidateInterviewPortalService {
         response.setProfilePhoto(toProfilePhotoDto(entity, candidate));
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());
+        if (candidate != null) {
+            response.setTimedOut(candidate.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT);
+        }
         return response;
     }
 
