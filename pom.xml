@@ -28,6 +28,18 @@
         -->
         <protobuf.version>3.21.12</protobuf.version>
         <grpc.version>1.61.0</grpc.version>
+        <!--
+            Helper switch that prevents the protobuf plugin from running more than once
+            during a single Maven invocation.  Commands such as
+            `mvn clean generate-sources compile` would otherwise execute the
+            generate-sources phase twice (once for the explicit goal and once as part of
+            the compile lifecycle), which in turn makes the protobuf plugin try to clean
+            the temporary directory twice.  On macOS that second cleanup attempt
+            sporadically fails with "Unable to clean up temporary proto file directory".
+            We default the flag to false here and flip it to true after the first
+            successful generation run via the properties-maven-plugin.
+        -->
+        <proto.skip>false</proto.skip>
     </properties>
 
     <dependencies>
@@ -179,7 +191,7 @@
         <protocArtifact>
           com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
         </protocArtifact>
-        <cleanOutputDirectory>true</cleanOutputDirectory>
+        <skip>${proto.skip}</skip>
       </configuration>
       <executions>
         <execution>
@@ -199,6 +211,36 @@
             <pluginArtifact>
               io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
             </pluginArtifact>
+          </configuration>
+        </execution>
+      </executions>
+    </plugin>
+
+    <!--
+      After the protobuf plugin has generated sources once we mark the rest of the
+      build so that subsequent lifecycle passes (e.g. the implicit generate-sources
+      that is triggered before compile) can skip the expensive regeneration step.
+      This avoids the double-run that previously caused the protobuf plugin to fail
+      while trying to clean up its temporary directories on macOS.
+    -->
+    <plugin>
+      <groupId>org.codehaus.mojo</groupId>
+      <artifactId>properties-maven-plugin</artifactId>
+      <version>1.2.1</version>
+      <executions>
+        <execution>
+          <id>flag-proto-generated</id>
+          <phase>generate-sources</phase>
+          <goals>
+            <goal>set-property</goal>
+          </goals>
+          <configuration>
+            <properties>
+              <property>
+                <name>proto.skip</name>
+                <value>true</value>
+              </property>
+            </properties>
           </configuration>
         </execution>
       </executions>
