@@ -79,6 +79,11 @@ public class CandidateInterviewController {
         return portalService.beginAnswering(jobCandidateId);
     }
 
+    @PostMapping("/{jobCandidateId}/pause")
+    public CandidateInterviewBeginResponse pauseAnswering(@PathVariable("jobCandidateId") String jobCandidateId) {
+        return portalService.pauseAnswering(jobCandidateId);
+    }
+
     @PostMapping("/{jobCandidateId}/answers")
     public CandidateInterviewAnswerResponse submitAnswer(@PathVariable("jobCandidateId") String jobCandidateId,
                                                          @Valid @RequestBody CandidateInterviewAnswerRequest request) {
