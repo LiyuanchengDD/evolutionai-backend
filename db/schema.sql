@@ -199,6 +199,45 @@ CREATE UNIQUE INDEX IF NOT EXISTS invitation_templates_company_default_uidx
     ON public.invitation_templates (company_id)
     WHERE is_default;
 
+-- ============================================================================
+--  AI 智能体开放能力历史记录
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.ai_resume_extractions (
+    extraction_id   uuid PRIMARY KEY,
+    file_url        varchar(1000) NOT NULL,
+    file_type       varchar(128),
+    extracted_name  varchar(128),
+    extracted_email varchar(255),
+    extracted_phone varchar(64),
+    raw_text        text,
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_job_extractions (
+    extraction_id     uuid PRIMARY KEY,
+    file_url          varchar(1000) NOT NULL,
+    file_type         varchar(128),
+    extracted_title   varchar(255),
+    extracted_location varchar(255),
+    raw_text          text,
+    created_at        timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_interview_question_sets (
+    record_id        uuid PRIMARY KEY,
+    resume_url       varchar(1000) NOT NULL,
+    jd_url           varchar(1000) NOT NULL,
+    question_num     integer,
+    questions_json   text,
+    candidate_name   varchar(128),
+    candidate_email  varchar(255),
+    job_title        varchar(255),
+    job_location     varchar(255),
+    resume_snapshot  text,
+    jd_snapshot      text,
+    created_at       timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS public.job_candidates (
     job_candidate_id uuid PRIMARY KEY,
     position_id      uuid        NOT NULL REFERENCES public.company_recruiting_positions (position_id) ON DELETE CASCADE,

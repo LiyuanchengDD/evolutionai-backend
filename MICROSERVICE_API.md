@@ -11,6 +11,17 @@
 | 通知与消息服务 | 邀约邮件、面试提醒、系统通知 | EmailTemplate, Notification |
 | AI 服务接口 | 题目生成、语音转文字、答案评估 | AI Engine (外部/独立服务) |
 
+## AI 智能体 REST 接口
+
+- `POST /api/ai/questions_generator` — 根据简历、JD 生成面试问题，响应 `questions[]`。
+- `POST /api/ai/extract` — 提取文件核心字段，`extractType=1` 返回简历信息（姓名/邮箱/电话），`extractType=2` 返回岗位信息（标题/地点）。
+
+### 数据落库
+
+- `ai_resume_extractions` — 记录每次简历提取的来源 URL、解析结果与原文快照。
+- `ai_job_extractions` — 记录 JD 提取的标题、地点等字段。
+- `ai_interview_question_sets` — 记录问题生成请求及题目 JSON。
+
 ## Key Use Cases
 - 用户与权限：企业注册、候选人注册/登录、权限控制（企业端 vs 候选人端 vs 管理后台）
 - 岗位生命周期：创建岗位 → 编辑/发布 → 状态流转（招募中/已完成） → 删除
