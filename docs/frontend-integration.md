@@ -255,6 +255,38 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
   - 请求体 `CandidateAiEvaluationRequest` 保留了分数、优缺点、风险提示、能力项评分、自定义指标、AI 模型版本及原始数据等字段，便于智能体服务直接落库；成功写入后同样会刷新候选人的面试状态与完成时间。【F:src/main/java/com/example/grpcdemo/controller/JobCandidateController.java†L59-L64】【F:src/main/java/com/example/grpcdemo/service/CompanyJobCandidateService.java†L408-L454】【F:src/main/java/com/example/grpcdemo/controller/dto/CandidateAiEvaluationRequest.java†L9-L89】
 - **岗位搜索增强**：岗位列表接口新增 `keyword` 参数，可在后端按岗位名称模糊查询，未命中时仍返回原本的倒序列表，供“搜索岗位名称”输入框复用。【F:src/main/java/com/example/grpcdemo/controller/CompanyJobController.java†L38-L43】【F:src/main/java/com/example/grpcdemo/service/CompanyJobService.java†L59-L73】
 
+## AI 智能体接口（REST）
+
+前端可直接调用 `/api/ai` 系列接口完成简历/JD 提取与面试问题生成，适用于招聘工作台的辅助功能。
+
+### 1. 生成面试问题
+- **Endpoint**：`POST /api/ai/questions_generator`
+- **Request body** (`AiQuestionGenerationRequest`):
+  - `resumeUrl`（必填）—— 简历文件 URL。
+  - `jdUrl`（必填）—— 职位描述 URL。
+  - `questionNum`（可选）—— 期望题目数量（默认 10，范围 1~50）。
+- **Response** (`AiQuestionGenerationResponse`):
+  - `questions[]` —— 生成的问题列表，按顺序返回字符串数组。
+
+### 2. 文件内容提取
+- **Endpoint**：`POST /api/ai/extract`
+- **Request body** (`AiExtractionRequest`):
+  - `fileUrl`（必填）—— 文档地址。
+  - `extractType`（必填）—— `1`=简历、`2`=JD。
+- **Response**：
+  - `extractType=1` 返回 `ResumeExtractionResponse`（`email`、`name`、`telephone`）。
+  - `extractType=2` 返回 `JobExtractionResponse`（`location`、`title`）。
+
+### 3. 错误处理
+- 表单校验失败 → HTTP 400，响应 `{ "errorCode": "VALIDATION_ERROR", ... }`。
+- 文件下载/解析失败 → HTTP 502，包含错误提示消息。
+- 未预期错误 → HTTP 500，响应 `{ "errorCode": "500", "message": "服务器内部错误" }`。
+
+### 4. 集成建议
+- 上传简历/JD 成功后可直接调用 `/api/ai/extract` 回填姓名、邮箱、岗位标题等字段。
+- 面试官工作台可调用 `questions_generator` 生成题库，按需限制 `questionNum` 并将返回数组渲染为列表。
+- `fileUrl` 需指向可访问的存储地址；若为私有存储可生成带有效期的临时签名 URL。
+
 ## Enterprise onboarding（企业注册资料引导）
 
 企业端完成邮箱注册并首次登录后，需要在浏览器里按四个步骤补全企业资料。所有接口都由

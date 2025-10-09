@@ -386,3 +386,48 @@
    ## 5.与企业端的联动
      - `candidate_interview_records`、`candidate_interview_audios`、`candidate_ai_evaluations` 仍由企业端和候选人端共享，企业可直接查看候选人答题、下载音频。
      - 候选人完成或放弃后会即时刷新 `job_candidates.interview_status`，方便企业端卡片状态同步。
+
+# 七,AI 智能体接口
+  ## 1.服务概述
+    - 服务监听 `0.0.0.0:5001`，REST 前缀统一为 `/api/ai`。
+    - 所有响应统一为 `{ "code": 200, "data": {...}, "message": "SUCCESS" }` 结构，异常时根据 HTTP 状态返回 `errorCode` 与描述。
+
+  ## 2.生成面试问题接口
+    | 方法 | URI | 描述 |
+    | --- | --- | --- |
+    | `POST` | `/api/ai/questions_generator` | 根据简历与职位描述生成面试问题 |
+
+    - **请求体** `AiQuestionGenerationRequest`
+      | 字段 | 类型 | 必填 | 说明 |
+      | --- | --- | --- | --- |
+      | `resumeUrl` | string | 是 | 简历文件 URL |
+      | `jdUrl` | string | 是 | 职位描述 URL |
+      | `questionNum` | integer | 否 | 期望题目数量，默认 10（1~50）|
+    - **响应体** `AiQuestionGenerationResponse`
+      | 字段 | 类型 | 说明 |
+      | --- | --- | --- |
+      | `questions[]` | string | 生成的问题列表 |
+
+  ## 3.文件内容提取接口
+    | 方法 | URI | 描述 |
+    | --- | --- | --- |
+    | `POST` | `/api/ai/extract` | 解析简历或 JD 文档核心信息 |
+
+    - **请求体** `AiExtractionRequest`
+      | 字段 | 类型 | 必填 | 说明 |
+      | --- | --- | --- | --- |
+      | `fileUrl` | string | 是 | 文件 URL |
+      | `extractType` | string | 是 | `1` 表示简历，`2` 表示 JD |
+    - **响应体**：
+      - `extractType=1` 返回 `ResumeExtractionResponse`（`email`、`name`、`telephone`）。
+      - `extractType=2` 返回 `JobExtractionResponse`（`location`、`title`）。
+
+  ## 4.异常处理
+    - Bean Validation 未通过返回 `400 VALIDATION_ERROR`。
+    - 主动抛出的 `ResponseStatusException` 保留原有 HTTP 状态与提示。
+    - 未捕获异常统一返回 `500 服务器内部错误`。
+
+  ## 5.数据库结构
+    - `ai_resume_extractions`：保存每次简历解析的来源、提取字段与原文快照。
+    - `ai_job_extractions`：保存 JD 解析结果（标题、地点等）。
+    - `ai_interview_question_sets`：保存题目生成记录，包含简历/JD 快照与问题列表。
