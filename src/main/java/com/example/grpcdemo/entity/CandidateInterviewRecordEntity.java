@@ -58,6 +58,15 @@ public class CandidateInterviewRecordEntity {
     @Column(name = "duration_seconds")
     private Integer durationSeconds;
 
+    @Column(name = "answer_elapsed_seconds")
+    private Integer answerElapsedSeconds;
+
+    @Column(name = "answer_resumed_at")
+    private Instant answerResumedAt;
+
+    @Column(name = "answer_paused_at")
+    private Instant answerPausedAt;
+
     @Column(name = "current_question_sequence")
     private Integer currentQuestionSequence;
 
@@ -213,6 +222,30 @@ public class CandidateInterviewRecordEntity {
 
     public void setDurationSeconds(Integer durationSeconds) {
         this.durationSeconds = durationSeconds;
+    }
+
+    public Integer getAnswerElapsedSeconds() {
+        return answerElapsedSeconds;
+    }
+
+    public void setAnswerElapsedSeconds(Integer answerElapsedSeconds) {
+        this.answerElapsedSeconds = answerElapsedSeconds;
+    }
+
+    public Instant getAnswerResumedAt() {
+        return answerResumedAt;
+    }
+
+    public void setAnswerResumedAt(Instant answerResumedAt) {
+        this.answerResumedAt = answerResumedAt;
+    }
+
+    public Instant getAnswerPausedAt() {
+        return answerPausedAt;
+    }
+
+    public void setAnswerPausedAt(Instant answerPausedAt) {
+        this.answerPausedAt = answerPausedAt;
     }
 
     public Integer getCurrentQuestionSequence() {

@@ -76,6 +76,7 @@ public class CandidateInterviewPortalService {
     private static final String STATUS_TIMED_OUT = "TIMED_OUT";
 
     private static final Duration ANSWER_TIME_LIMIT = Duration.ofMinutes(60);
+    private static final long ANSWER_TIME_LIMIT_SECONDS = ANSWER_TIME_LIMIT.getSeconds();
 
     private static final Map<String, Set<JobCandidateInterviewStatus>> STATUS_GROUPS = Map.of(
             STATUS_WAITING, EnumSet.of(JobCandidateInterviewStatus.NOT_INTERVIEWED,
@@ -350,9 +351,7 @@ public class CandidateInterviewPortalService {
         if (record.getInterviewStartedAt() == null) {
             record.setInterviewStartedAt(now);
         }
-        if (record.getAnswerDeadlineAt() == null && record.getInterviewStartedAt() != null) {
-            record.setAnswerDeadlineAt(record.getInterviewStartedAt().plus(ANSWER_TIME_LIMIT));
-        }
+        record = resumeAnswerTimer(record, now);
         record = interviewRecordRepository.save(record);
 
         candidate.setInterviewRecordId(record.getRecordId());
@@ -360,11 +359,29 @@ public class CandidateInterviewPortalService {
         candidate.setUpdatedAt(now);
         candidateRepository.save(candidate);
 
-        CandidateInterviewBeginResponse response = new CandidateInterviewBeginResponse();
-        response.setInterviewRecordId(record.getRecordId());
-        response.setInterviewStartedAt(record.getInterviewStartedAt());
-        response.setAnswerDeadlineAt(record.getAnswerDeadlineAt());
-        return response;
+        return buildBeginResponse(record);
+    }
+
+    @Transactional
+    public CandidateInterviewBeginResponse pauseAnswering(String jobCandidateId) {
+        CompanyJobCandidateEntity candidate = candidateRepository.findById(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "邀约不存在"));
+        CandidateInterviewRecordEntity record = interviewRecordRepository
+                .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "尚未创建面试记录"));
+        record = ensureActiveInterviewWindow(candidate, record, false);
+        if (record.getInterviewStartedAt() == null) {
+            return buildBeginResponse(record);
+        }
+        Instant now = Instant.now();
+        record = pauseAnswerTimer(record, now);
+        CandidateInterviewRecordEntity saved = interviewRecordRepository.save(record);
+
+        candidate.setInterviewRecordId(saved.getRecordId());
+        candidate.setUpdatedAt(now);
+        candidateRepository.save(candidate);
+
+        return buildBeginResponse(saved);
     }
 
     @Transactional
@@ -383,6 +400,9 @@ public class CandidateInterviewPortalService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先上传个人照片");
         }
         if (record.getInterviewStartedAt() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先点击开始录音");
+        }
+        if (record.getAnswerDeadlineAt() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先点击开始录音");
         }
         byte[] data;
@@ -432,6 +452,9 @@ public class CandidateInterviewPortalService {
         Instant now = Instant.now();
         boolean timedOut = candidate.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT;
         Instant effectiveEnd = now;
+        if (!timedOut) {
+            record = pauseAnswerTimer(record, now);
+        }
         if (timedOut) {
             final Instant answerDeadlineAt = record.getAnswerDeadlineAt();
             effectiveEnd = Optional.ofNullable(record.getInterviewEndedAt())
@@ -494,6 +517,10 @@ public class CandidateInterviewPortalService {
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElse(null);
         Instant now = Instant.now();
+        if (record != null) {
+            record = pauseAnswerTimer(record, now);
+            interviewRecordRepository.save(record);
+        }
         candidate.setInterviewStatus(JobCandidateInterviewStatus.ABANDONED);
         candidate.setCandidateResponseAt(now);
         candidate.setInterviewCompletedAt(now);
@@ -813,6 +840,64 @@ public class CandidateInterviewPortalService {
         return STATUS_ALL;
     }
 
+    private CandidateInterviewBeginResponse buildBeginResponse(CandidateInterviewRecordEntity record) {
+        CandidateInterviewBeginResponse response = new CandidateInterviewBeginResponse();
+        if (record != null) {
+            response.setInterviewRecordId(record.getRecordId());
+            response.setInterviewStartedAt(record.getInterviewStartedAt());
+            response.setAnswerDeadlineAt(record.getAnswerDeadlineAt());
+        }
+        return response;
+    }
+
+    private CandidateInterviewRecordEntity resumeAnswerTimer(CandidateInterviewRecordEntity record, Instant now) {
+        int elapsed = Optional.ofNullable(record.getAnswerElapsedSeconds()).orElse(0);
+        if (elapsed >= ANSWER_TIME_LIMIT_SECONDS) {
+            throw new ResponseStatusException(HttpStatus.GONE, "答题时间已结束，请重新预约面试");
+        }
+        long remaining = ANSWER_TIME_LIMIT_SECONDS - elapsed;
+        record.setAnswerResumedAt(now);
+        record.setAnswerPausedAt(null);
+        record.setAnswerDeadlineAt(now.plusSeconds(remaining));
+        record.setAnswerElapsedSeconds(elapsed);
+        return record;
+    }
+
+    private CandidateInterviewRecordEntity pauseAnswerTimer(CandidateInterviewRecordEntity record, Instant now) {
+        Instant resumedAt = record.getAnswerResumedAt();
+        int elapsed = Optional.ofNullable(record.getAnswerElapsedSeconds()).orElse(0);
+        if (resumedAt != null) {
+            long delta = Math.max(0, Duration.between(resumedAt, now).getSeconds());
+            long updated = Math.min(ANSWER_TIME_LIMIT_SECONDS, elapsed + delta);
+            record.setAnswerElapsedSeconds(Math.toIntExact(updated));
+            elapsed = record.getAnswerElapsedSeconds();
+        }
+        record.setAnswerResumedAt(null);
+        record.setAnswerPausedAt(now);
+        record.setAnswerDeadlineAt(null);
+        if (elapsed >= ANSWER_TIME_LIMIT_SECONDS) {
+            record.setAnswerElapsedSeconds((int) ANSWER_TIME_LIMIT_SECONDS);
+        }
+        return record;
+    }
+
+    private void markCandidateTimedOut(CompanyJobCandidateEntity candidate, Instant when) {
+        if (candidate == null) {
+            return;
+        }
+        if (candidate.getInterviewStatus() == JobCandidateInterviewStatus.COMPLETED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.ABANDONED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.CANCELLED
+                || candidate.getInterviewStatus() == JobCandidateInterviewStatus.TIMED_OUT) {
+            return;
+        }
+        Instant effective = when != null ? when : Instant.now();
+        candidate.setInterviewStatus(JobCandidateInterviewStatus.TIMED_OUT);
+        candidate.setInterviewCompletedAt(effective);
+        candidate.setUpdatedAt(Instant.now());
+        candidateRepository.save(candidate);
+    }
+
     private CandidateInterviewRecordEntity ensureActiveInterviewWindow(CompanyJobCandidateEntity candidate,
                                                                        CandidateInterviewRecordEntity record,
                                                                        boolean throwIfExpired) {
@@ -823,40 +908,71 @@ public class CandidateInterviewPortalService {
         if (start == null) {
             return record;
         }
-        Instant deadline = record.getAnswerDeadlineAt();
-        boolean recordChanged = false;
-        if (deadline == null) {
-            deadline = start.plus(ANSWER_TIME_LIMIT);
-            record.setAnswerDeadlineAt(deadline);
-            recordChanged = true;
-        }
         Instant now = Instant.now();
-        if (!now.isBefore(deadline)) {
-            if (record.getInterviewEndedAt() == null) {
-                record.setInterviewEndedAt(deadline);
-                recordChanged = true;
+        Instant deadline = record.getAnswerDeadlineAt();
+        int elapsed = Optional.ofNullable(record.getAnswerElapsedSeconds()).orElse(0);
+        boolean recordChanged = false;
+
+        if (deadline != null) {
+            if (!now.isBefore(deadline)) {
+                elapsed = Math.toIntExact(ANSWER_TIME_LIMIT_SECONDS);
+                record.setAnswerElapsedSeconds(elapsed);
+                record.setAnswerResumedAt(null);
+                record.setAnswerPausedAt(deadline);
+                if (record.getInterviewEndedAt() == null) {
+                    record.setInterviewEndedAt(deadline);
+                    recordChanged = true;
+                }
+                if (record.getDurationSeconds() == null) {
+                    record.setDurationSeconds(Math.toIntExact(ChronoUnit.SECONDS.between(start, deadline)));
+                    recordChanged = true;
+                }
+                if (recordChanged) {
+                    record = interviewRecordRepository.save(record);
+                    recordChanged = false;
+                }
+                markCandidateTimedOut(candidate, deadline);
+                if (throwIfExpired) {
+                    throw new ResponseStatusException(HttpStatus.GONE, "答题时间已结束，请重新预约面试");
+                }
+                return record;
             }
-            if (record.getDurationSeconds() == null) {
-                record.setDurationSeconds(Math.toIntExact(ChronoUnit.SECONDS.between(start, deadline)));
-                recordChanged = true;
+            Instant resumedAt = record.getAnswerResumedAt();
+            if (resumedAt != null) {
+                long delta = Math.max(0, Duration.between(resumedAt, now).getSeconds());
+                long updated = Math.min(ANSWER_TIME_LIMIT_SECONDS, (long) elapsed + delta);
+                if (updated != elapsed) {
+                    record.setAnswerElapsedSeconds(Math.toIntExact(updated));
+                    recordChanged = true;
+                }
             }
-            if (recordChanged) {
-                record = interviewRecordRepository.save(record);
-                recordChanged = false;
+        } else {
+            if (elapsed >= ANSWER_TIME_LIMIT_SECONDS) {
+                Instant effectiveEnd = Optional.ofNullable(record.getAnswerPausedAt()).orElse(now);
+                record.setAnswerElapsedSeconds((int) ANSWER_TIME_LIMIT_SECONDS);
+                record.setAnswerResumedAt(null);
+                record.setAnswerPausedAt(effectiveEnd);
+                if (record.getInterviewEndedAt() == null) {
+                    record.setInterviewEndedAt(effectiveEnd);
+                    recordChanged = true;
+                }
+                if (record.getDurationSeconds() == null) {
+                    record.setDurationSeconds(Math.toIntExact(ChronoUnit.SECONDS.between(start, effectiveEnd)));
+                    recordChanged = true;
+                }
+                if (recordChanged) {
+                    record = interviewRecordRepository.save(record);
+                    recordChanged = false;
+                }
+                markCandidateTimedOut(candidate, effectiveEnd);
+                if (throwIfExpired) {
+                    throw new ResponseStatusException(HttpStatus.GONE, "答题时间已结束，请重新预约面试");
+                }
+                return record;
             }
-            if (candidate.getInterviewStatus() != JobCandidateInterviewStatus.COMPLETED
-                    && candidate.getInterviewStatus() != JobCandidateInterviewStatus.ABANDONED
-                    && candidate.getInterviewStatus() != JobCandidateInterviewStatus.CANCELLED
-                    && candidate.getInterviewStatus() != JobCandidateInterviewStatus.TIMED_OUT) {
-                candidate.setInterviewStatus(JobCandidateInterviewStatus.TIMED_OUT);
-                candidate.setInterviewCompletedAt(deadline);
-                candidate.setUpdatedAt(now);
-                candidateRepository.save(candidate);
-            }
-            if (throwIfExpired) {
-                throw new ResponseStatusException(HttpStatus.GONE, "答题时间已结束，请重新预约面试");
-            }
-        } else if (recordChanged) {
+        }
+
+        if (recordChanged) {
             record = interviewRecordRepository.save(record);
         }
         return record;
@@ -882,7 +998,10 @@ public class CandidateInterviewPortalService {
         response.setInterviewStartedAt(entity.getInterviewStartedAt());
         response.setInterviewEndedAt(entity.getInterviewEndedAt());
         response.setAnswerDeadlineAt(entity.getAnswerDeadlineAt());
+        response.setAnswerPausedAt(entity.getAnswerPausedAt());
+        response.setAnswerResumedAt(entity.getAnswerResumedAt());
         response.setDurationSeconds(entity.getDurationSeconds());
+        response.setAnswerElapsedSeconds(entity.getAnswerElapsedSeconds());
         response.setCurrentQuestionSequence(entity.getCurrentQuestionSequence());
         response.setQuestions(readQuestionList(entity.getQuestionsJson()));
         response.setAudios(audios.stream().map(this::toAudioDto).collect(Collectors.toList()));
