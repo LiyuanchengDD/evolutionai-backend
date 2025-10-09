@@ -329,7 +329,8 @@ public class AiAssistantService {
         TemplateContext context = new TemplateContext(candidateName, jobTitle, jobLocation);
 
         int iteration = 0;
-        while (questions.size() < questionNum) {
+        int maxAttempts = questionNum * templates.size() * 2;
+        while (questions.size() < questionNum && iteration < maxAttempts) {
             AiQuestionTemplateEntity template = templates.get(iteration % templates.size());
             int sequence = questions.size() + 1;
             int repeatIndex = iteration / templates.size();
@@ -338,18 +339,12 @@ public class AiAssistantService {
                 questions.add(rendered);
             }
             iteration++;
-            if (iteration > questionNum * 3) {
-                break;
-            }
         }
 
-        if (questions.isEmpty()) {
-            throw new ResponseStatusException(BAD_GATEWAY, "暂无可用的面试问题模版");
+        if (questions.size() < questionNum) {
+            throw new ResponseStatusException(BAD_GATEWAY, "面试问题模版配置不完整，无法生成足够的题目");
         }
-        if (questions.size() > questionNum) {
-            return new ArrayList<>(questions.subList(0, questionNum));
-        }
-        return questions;
+        return questions.size() == questionNum ? questions : new ArrayList<>(questions.subList(0, questionNum));
     }
 
     private List<AiQuestionTemplateEntity> loadTemplates() {
