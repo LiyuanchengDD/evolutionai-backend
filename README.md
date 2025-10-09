@@ -407,6 +407,7 @@
       | 字段 | 类型 | 说明 |
       | --- | --- | --- |
       | `questions[]` | string | 生成的问题列表 |
+    - **实现说明**：问题文本来自 `ai_question_templates` 表的动态模版。支持占位符 `{{candidateName}}`、`{{jobTitle}}`、`{{jobLocation}}`、`{{sequence}}`、`{{repeatIndex}}`、`{{repeatSuffix}}`，便于运营在数据库中调整题库内容；若模版被停用或为空，接口会返回 502 并提示配置缺失。
 
   ## 3.文件内容提取接口
     | 方法 | URI | 描述 |

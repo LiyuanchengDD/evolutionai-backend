@@ -6,9 +6,11 @@ import com.example.grpcdemo.controller.dto.JobExtractionResponse;
 import com.example.grpcdemo.controller.dto.ResumeExtractionResponse;
 import com.example.grpcdemo.entity.AiInterviewQuestionSetEntity;
 import com.example.grpcdemo.entity.AiJobExtractionEntity;
+import com.example.grpcdemo.entity.AiQuestionTemplateEntity;
 import com.example.grpcdemo.entity.AiResumeExtractionEntity;
 import com.example.grpcdemo.repository.AiInterviewQuestionSetRepository;
 import com.example.grpcdemo.repository.AiJobExtractionRepository;
+import com.example.grpcdemo.repository.AiQuestionTemplateRepository;
 import com.example.grpcdemo.repository.AiResumeExtractionRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,18 +53,22 @@ public class AiAssistantService {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", Pattern.CASE_INSENSITIVE);
     private static final Pattern PHONE_PATTERN = Pattern.compile("(?:(?:\\+?86)?[- ]?)?1[3-9]\\d{9}");
 
+    private static final String DEFAULT_LANGUAGE = "zh-CN";
+
     private final WebClient webClient;
     private final Parser parser;
     private final Tika tika;
     private final AiResumeExtractionRepository resumeExtractionRepository;
     private final AiJobExtractionRepository jobExtractionRepository;
     private final AiInterviewQuestionSetRepository questionSetRepository;
+    private final AiQuestionTemplateRepository questionTemplateRepository;
     private final ObjectMapper objectMapper;
 
     public AiAssistantService(WebClient.Builder builder,
                               AiResumeExtractionRepository resumeExtractionRepository,
                               AiJobExtractionRepository jobExtractionRepository,
                               AiInterviewQuestionSetRepository questionSetRepository,
+                              AiQuestionTemplateRepository questionTemplateRepository,
                               ObjectMapper objectMapper) {
         this.webClient = builder.build();
         this.parser = new AutoDetectParser();
@@ -70,6 +76,7 @@ public class AiAssistantService {
         this.resumeExtractionRepository = resumeExtractionRepository;
         this.jobExtractionRepository = jobExtractionRepository;
         this.questionSetRepository = questionSetRepository;
+        this.questionTemplateRepository = questionTemplateRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -317,31 +324,85 @@ public class AiAssistantService {
     }
 
     private List<String> buildQuestionList(int questionNum, String candidateName, String jobTitle, String jobLocation) {
-        String name = StringUtils.hasText(candidateName) ? candidateName : "您";
-        String title = StringUtils.hasText(jobTitle) ? jobTitle : "该岗位";
-        String location = StringUtils.hasText(jobLocation) ? jobLocation : "工作地";
+        List<AiQuestionTemplateEntity> templates = loadTemplates();
+        List<String> questions = new ArrayList<>(questionNum);
+        TemplateContext context = new TemplateContext(candidateName, jobTitle, jobLocation);
 
-        List<String> questions = new ArrayList<>();
-        questions.add(String.format("请先做一下自我介绍，重点分享您在%s相关的经历。", title));
-        questions.add(String.format("结合您在%s的经验，谈谈最具代表性的一个项目以及取得的成果。", title));
-        questions.add(String.format("在从事%s工作时，您曾遇到过哪些挑战？您是如何解决的？", title));
-        questions.add(String.format("针对我们位于%s的团队，您认为自己适应当地业务或文化的优势是什么？", location));
-        questions.add("请分享一次与跨团队协作的经历，重点说明沟通方式和最终成效。");
-        questions.add("谈谈您近期关注的行业动态或技术趋势，它们如何影响到您的职业规划？");
-        questions.add(String.format("如果加入我们担任%s，您希望前三个月完成哪些目标？", title));
-        questions.add(String.format("请回顾简历中最能体现您领导力的一次经历，%s在其中起到了什么作用？", name));
-        questions.add("请举例说明您如何通过学习或培训快速提升某项核心能力。");
-        questions.add(String.format("针对岗位要求的关键技能，您认为自己还需要加强哪些方面？计划如何提升？"));
+        int iteration = 0;
+        while (questions.size() < questionNum) {
+            AiQuestionTemplateEntity template = templates.get(iteration % templates.size());
+            int sequence = questions.size() + 1;
+            int repeatIndex = iteration / templates.size();
+            String rendered = renderTemplate(template.getContent(), context, sequence, repeatIndex);
+            if (StringUtils.hasText(rendered)) {
+                questions.add(rendered);
+            }
+            iteration++;
+            if (iteration > questionNum * 3) {
+                break;
+            }
+        }
 
-        if (questionNum < questions.size()) {
+        if (questions.isEmpty()) {
+            throw new ResponseStatusException(BAD_GATEWAY, "暂无可用的面试问题模版");
+        }
+        if (questions.size() > questionNum) {
             return new ArrayList<>(questions.subList(0, questionNum));
         }
-        int index = 0;
-        while (questions.size() < questionNum) {
-            index++;
-            questions.add(String.format("请分享第 %d 次让您印象深刻的团队合作经历，以及您在其中的贡献。", index));
-        }
         return questions;
+    }
+
+    private List<AiQuestionTemplateEntity> loadTemplates() {
+        List<AiQuestionTemplateEntity> templates = questionTemplateRepository
+                .findByLanguageAndActiveTrueOrderByDisplayOrderAsc(DEFAULT_LANGUAGE);
+        if (templates.isEmpty()) {
+            templates = questionTemplateRepository.findByActiveTrueOrderByDisplayOrderAsc();
+        }
+        if (templates.isEmpty()) {
+            throw new ResponseStatusException(BAD_GATEWAY, "没有配置可用的面试问题模版");
+        }
+        return templates;
+    }
+
+    private String renderTemplate(String template,
+                                  TemplateContext context,
+                                  int sequence,
+                                  int repeatIndex) {
+        if (!StringUtils.hasText(template)) {
+            return template;
+        }
+        String result = template;
+        result = result.replace("{{candidateName}}", context.candidateName());
+        result = result.replace("{{jobTitle}}", context.jobTitle());
+        result = result.replace("{{jobLocation}}", context.jobLocation());
+        result = result.replace("{{sequence}}", String.valueOf(sequence));
+        result = result.replace("{{repeatIndex}}", String.valueOf(repeatIndex));
+        if (repeatIndex > 0 && !result.contains("{{repeatSuffix}}")) {
+            result = result + String.format("（拓展问题 %d）", repeatIndex);
+        }
+        result = result.replace("{{repeatSuffix}}", repeatIndex > 0 ? String.format("（拓展问题 %d）", repeatIndex) : "");
+        return result;
+    }
+
+    private record TemplateContext(String rawCandidateName,
+                                   String rawJobTitle,
+                                   String rawJobLocation) {
+
+        private static final String DEFAULT_NAME = "候选人";
+        private static final String DEFAULT_TITLE = "目标岗位";
+        private static final String DEFAULT_LOCATION = "工作地点";
+
+        String candidateName() {
+            return StringUtils.hasText(rawCandidateName) ? rawCandidateName : DEFAULT_NAME;
+        }
+
+        String jobTitle() {
+            return StringUtils.hasText(rawJobTitle) ? rawJobTitle : DEFAULT_TITLE;
+        }
+
+        String jobLocation() {
+            return StringUtils.hasText(rawJobLocation) ? rawJobLocation : DEFAULT_LOCATION;
+        }
     }
 
     private record DownloadedFile(byte[] content, String contentType) {
