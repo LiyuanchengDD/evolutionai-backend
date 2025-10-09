@@ -19,7 +19,10 @@ public class CandidateInterviewRecordResponse {
     private Instant interviewStartedAt;
     private Instant interviewEndedAt;
     private Instant answerDeadlineAt;
+    private Instant answerPausedAt;
+    private Instant answerResumedAt;
     private Integer durationSeconds;
+    private Integer answerElapsedSeconds;
     private List<CandidateInterviewQuestionDto> questions;
     private List<CandidateInterviewAudioDto> audios;
     private String transcriptRaw;
@@ -111,12 +114,36 @@ public class CandidateInterviewRecordResponse {
         this.answerDeadlineAt = answerDeadlineAt;
     }
 
+    public Instant getAnswerPausedAt() {
+        return answerPausedAt;
+    }
+
+    public void setAnswerPausedAt(Instant answerPausedAt) {
+        this.answerPausedAt = answerPausedAt;
+    }
+
+    public Instant getAnswerResumedAt() {
+        return answerResumedAt;
+    }
+
+    public void setAnswerResumedAt(Instant answerResumedAt) {
+        this.answerResumedAt = answerResumedAt;
+    }
+
     public Integer getDurationSeconds() {
         return durationSeconds;
     }
 
     public void setDurationSeconds(Integer durationSeconds) {
         this.durationSeconds = durationSeconds;
+    }
+
+    public Integer getAnswerElapsedSeconds() {
+        return answerElapsedSeconds;
+    }
+
+    public void setAnswerElapsedSeconds(Integer answerElapsedSeconds) {
+        this.answerElapsedSeconds = answerElapsedSeconds;
     }
 
     public List<CandidateInterviewQuestionDto> getQuestions() {
