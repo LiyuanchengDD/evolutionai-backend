@@ -14,6 +14,7 @@
 ## AI 智能体 REST 接口
 
 - `POST /api/ai/questions_generator` — 根据简历、JD 生成面试问题，响应 `questions[]`。
+  - 问题内容来源于数据库表 `ai_question_templates` 的动态模版，支持 `{{candidateName}}`、`{{jobTitle}}`、`{{jobLocation}}` 等占位符，便于运维调优题库。
 - `POST /api/ai/extract` — 提取文件核心字段，`extractType=1` 返回简历信息（姓名/邮箱/电话），`extractType=2` 返回岗位信息（标题/地点）。
 
 ### 数据落库

@@ -267,6 +267,7 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
   - `questionNum`（可选）—— 期望题目数量（默认 10，范围 1~50）。
 - **Response** (`AiQuestionGenerationResponse`):
   - `questions[]` —— 生成的问题列表，按顺序返回字符串数组。
+- **实现说明**：问题文案不再写死于代码中，而是读取数据库表 `ai_question_templates` 中按语言配置的模版。模版内可使用 `{{candidateName}}`、`{{jobTitle}}`、`{{jobLocation}}`、`{{sequence}}`、`{{repeatIndex}}`、`{{repeatSuffix}}` 等占位符，由运营或管理员在后台维护。
 
 ### 2. 文件内容提取
 - **Endpoint**：`POST /api/ai/extract`

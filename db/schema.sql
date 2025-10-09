@@ -200,6 +200,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS invitation_templates_company_default_uidx
     WHERE is_default;
 
 -- ============================================================================
+--  AI 面试题模版配置
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.ai_question_templates (
+    template_id   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    language      varchar(32)  NOT NULL,
+    content       varchar(2000) NOT NULL,
+    display_order integer,
+    is_active     boolean      NOT NULL DEFAULT true,
+    created_at    timestamptz  NOT NULL DEFAULT now(),
+    updated_at    timestamptz  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ai_question_templates_language_idx
+    ON public.ai_question_templates (language, is_active);
+
+DROP TRIGGER IF EXISTS set_ai_question_templates_updated_at
+    ON public.ai_question_templates;
+CREATE TRIGGER set_ai_question_templates_updated_at
+    BEFORE UPDATE ON public.ai_question_templates
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
+-- ============================================================================
 --  AI 智能体开放能力历史记录
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.ai_resume_extractions (
