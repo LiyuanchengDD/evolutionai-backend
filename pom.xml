@@ -233,6 +233,13 @@
       that is triggered before compile) can skip the expensive regeneration step.
       This avoids the double-run that previously caused the protobuf plugin to fail
       while trying to clean up its temporary directories on macOS.
+
+      The protobuf plugin reads the value of the <skip/> flag from the Maven project
+      properties instead of the JVM system properties.  The generate-sources phase
+      therefore needs to update the project property after the first execution so
+      that any later invocations in the same build see the new value.  Using the
+      properties-maven-plugin's set-property goal ensures the updated flag is stored
+      on the project and immediately visible to the next plugin execution.
     -->
     <plugin>
       <groupId>org.codehaus.mojo</groupId>
@@ -243,7 +250,7 @@
           <id>flag-proto-generated</id>
           <phase>generate-sources</phase>
           <goals>
-            <goal>set-system-properties</goal>
+            <goal>set-property</goal>
           </goals>
           <configuration>
             <properties>
