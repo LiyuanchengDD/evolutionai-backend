@@ -82,9 +82,11 @@ public class CandidateInterviewRecordEntity {
     @Column(name = "metadata_json")
     private String metadataJson;
 
-    @Lob
-    @Column(name = "profile_photo_data")
-    private byte[] profilePhotoData;
+    @Column(name = "profile_photo_storage_bucket", length = 128)
+    private String profilePhotoStorageBucket;
+
+    @Column(name = "profile_photo_storage_path", length = 512)
+    private String profilePhotoStoragePath;
 
     @Column(name = "profile_photo_file_name", length = 255)
     private String profilePhotoFileName;
@@ -280,12 +282,20 @@ public class CandidateInterviewRecordEntity {
         this.metadataJson = metadataJson;
     }
 
-    public byte[] getProfilePhotoData() {
-        return profilePhotoData;
+    public String getProfilePhotoStorageBucket() {
+        return profilePhotoStorageBucket;
     }
 
-    public void setProfilePhotoData(byte[] profilePhotoData) {
-        this.profilePhotoData = profilePhotoData;
+    public void setProfilePhotoStorageBucket(String profilePhotoStorageBucket) {
+        this.profilePhotoStorageBucket = profilePhotoStorageBucket;
+    }
+
+    public String getProfilePhotoStoragePath() {
+        return profilePhotoStoragePath;
+    }
+
+    public void setProfilePhotoStoragePath(String profilePhotoStoragePath) {
+        this.profilePhotoStoragePath = profilePhotoStoragePath;
     }
 
     public String getProfilePhotoFileName() {

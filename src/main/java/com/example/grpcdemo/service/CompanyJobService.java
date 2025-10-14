@@ -13,6 +13,10 @@ import com.example.grpcdemo.repository.CompanyContactRepository;
 import com.example.grpcdemo.repository.CompanyJobDocumentRepository;
 import com.example.grpcdemo.repository.CompanyProfileRepository;
 import com.example.grpcdemo.repository.CompanyRecruitingPositionRepository;
+import com.example.grpcdemo.storage.StorageCategory;
+import com.example.grpcdemo.storage.StorageException;
+import com.example.grpcdemo.storage.StorageObjectPointer;
+import com.example.grpcdemo.storage.SupabaseStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -40,17 +44,20 @@ public class CompanyJobService {
     private final CompanyContactRepository companyContactRepository;
     private final CompanyJobDocumentRepository jobDocumentRepository;
     private final JobDescriptionParser jobDescriptionParser;
+    private final SupabaseStorageService storageService;
 
     public CompanyJobService(CompanyRecruitingPositionRepository recruitingPositionRepository,
                              CompanyProfileRepository companyProfileRepository,
                              CompanyContactRepository companyContactRepository,
                              CompanyJobDocumentRepository jobDocumentRepository,
-                             JobDescriptionParser jobDescriptionParser) {
+                             JobDescriptionParser jobDescriptionParser,
+                             SupabaseStorageService storageService) {
         this.recruitingPositionRepository = recruitingPositionRepository;
         this.companyProfileRepository = companyProfileRepository;
         this.companyContactRepository = companyContactRepository;
         this.jobDocumentRepository = jobDocumentRepository;
         this.jobDescriptionParser = jobDescriptionParser;
+        this.storageService = storageService;
     }
 
     @Transactional(readOnly = true)
@@ -139,7 +146,15 @@ public class CompanyJobService {
         document.setPositionId(positionId);
         document.setFileName(fileName);
         document.setFileType(contentType);
-        document.setFileContent(content);
+        StorageObjectPointer pointer;
+        try {
+            pointer = storageService.upload(StorageCategory.JOB_DOCUMENT, fileName, content, contentType);
+        } catch (StorageException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "岗位文档存储失败", e);
+        }
+        document.setStorageBucket(pointer.bucket());
+        document.setStoragePath(pointer.path());
+        document.setFileSizeBytes(pointer.sizeBytes());
         document.setUploadUserId(uploaderUserId);
         document.setCreatedAt(now);
         document.setUpdatedAt(now);
@@ -241,7 +256,17 @@ public class CompanyJobService {
     }
 
     private String buildDocumentHtml(CompanyJobDocumentEntity document) {
-        byte[] content = document.getFileContent();
+        StorageObjectPointer pointer = toPointer(document);
+        if (pointer == null) {
+            return null;
+        }
+        byte[] content;
+        try {
+            content = storageService.download(pointer);
+        } catch (StorageException e) {
+            log.error("加载岗位文档 {} 失败", document.getDocumentId(), e);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "获取岗位文档失败", e);
+        }
         if (content == null || content.length == 0) {
             return null;
         }
@@ -251,6 +276,18 @@ public class CompanyJobService {
         String base64 = Base64.getEncoder().encodeToString(content);
         return "<iframe src=\"data:" + mimeType + ";base64," + base64
                 + "\" style=\"width:100%;height:100%;border:none;\"></iframe>";
+    }
+
+    private StorageObjectPointer toPointer(CompanyJobDocumentEntity document) {
+        if (document == null
+                || !StringUtils.hasText(document.getStorageBucket())
+                || !StringUtils.hasText(document.getStoragePath())) {
+            return null;
+        }
+        return new StorageObjectPointer(document.getStorageBucket(),
+                document.getStoragePath(),
+                document.getFileSizeBytes(),
+                document.getFileType());
     }
 
     private String resolveCompanyId(String companyId, String userId) {
