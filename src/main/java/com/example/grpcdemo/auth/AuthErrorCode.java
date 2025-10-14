@@ -14,6 +14,8 @@ public enum AuthErrorCode {
     USER_NOT_FOUND(Status.NOT_FOUND, HttpStatus.BAD_REQUEST, "用户不存在"),
     PASSWORD_TOO_WEAK(Status.INVALID_ARGUMENT, HttpStatus.BAD_REQUEST, "密码强度不足"),
     INVALID_CREDENTIALS(Status.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED, "邮箱或密码错误"),
+    TRIAL_INVITE_NOT_SENT(Status.FAILED_PRECONDITION, HttpStatus.FORBIDDEN, "尚未发送邀请码"),
+    TRIAL_INVITE_EXPIRED(Status.FAILED_PRECONDITION, HttpStatus.FORBIDDEN, "邀请码已经过期，请重新申请"),
     INTERNAL_ERROR(Status.INTERNAL, HttpStatus.INTERNAL_SERVER_ERROR, "系统内部错误");
 
     private final Status status;

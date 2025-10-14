@@ -65,6 +65,24 @@ CREATE TRIGGER set_auth_verification_codes_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
 
+CREATE TABLE IF NOT EXISTS public.trial_invitations (
+    invitation_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email         citext      NOT NULL,
+    sent_at       timestamptz NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS trial_invitations_email_idx
+    ON public.trial_invitations (email);
+
+DROP TRIGGER IF EXISTS set_trial_invitations_updated_at
+    ON public.trial_invitations;
+CREATE TRIGGER set_trial_invitations_updated_at
+    BEFORE UPDATE ON public.trial_invitations
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_updated_at();
+
 DROP TRIGGER IF EXISTS set_user_accounts_updated_at
     ON public.user_accounts;
 CREATE TRIGGER set_user_accounts_updated_at
