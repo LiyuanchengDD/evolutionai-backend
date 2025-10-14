@@ -39,7 +39,7 @@
             We default the flag to false here and flip it to true after the first
             successful generation run via the properties-maven-plugin.
         -->
-        <proto.skip>false</proto.skip>
+        <protobuf.skip>false</protobuf.skip>
     </properties>
 
     <dependencies>
@@ -124,9 +124,8 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
         </dependency>
 
         <!-- Protobuf -->
@@ -203,7 +202,7 @@
         <protocArtifact>
           com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
         </protocArtifact>
-        <skip>${proto.skip}</skip>
+        <skip>${protobuf.skip}</skip>
       </configuration>
       <executions>
         <execution>
@@ -249,7 +248,7 @@
           <configuration>
             <properties>
               <property>
-                <name>proto.skip</name>
+                <name>protobuf.skip</name>
                 <value>true</value>
               </property>
             </properties>
