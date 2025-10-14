@@ -33,6 +33,10 @@ import com.example.grpcdemo.repository.CompanyContactRepository;
 import com.example.grpcdemo.repository.CompanyJobCandidateRepository;
 import com.example.grpcdemo.repository.CompanyProfileRepository;
 import com.example.grpcdemo.repository.CompanyRecruitingPositionRepository;
+import com.example.grpcdemo.storage.StorageCategory;
+import com.example.grpcdemo.storage.StorageException;
+import com.example.grpcdemo.storage.StorageObjectPointer;
+import com.example.grpcdemo.storage.SupabaseStorageService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -116,6 +120,7 @@ public class CandidateInterviewPortalService {
     private final InterviewQuestionClient questionClient;
     private final ObjectMapper objectMapper;
     private final LocationCatalog locationCatalog;
+    private final SupabaseStorageService storageService;
 
     public CandidateInterviewPortalService(CompanyJobCandidateRepository candidateRepository,
                                            CompanyRecruitingPositionRepository positionRepository,
@@ -125,7 +130,8 @@ public class CandidateInterviewPortalService {
                                            CandidateInterviewAudioRepository interviewAudioRepository,
                                            InterviewQuestionClient questionClient,
                                            ObjectMapper objectMapper,
-                                           LocationCatalog locationCatalog) {
+                                           LocationCatalog locationCatalog,
+                                           SupabaseStorageService storageService) {
         this.candidateRepository = candidateRepository;
         this.positionRepository = positionRepository;
         this.companyProfileRepository = companyProfileRepository;
@@ -135,6 +141,7 @@ public class CandidateInterviewPortalService {
         this.questionClient = questionClient;
         this.objectMapper = objectMapper;
         this.locationCatalog = locationCatalog;
+        this.storageService = storageService;
     }
 
     @Transactional
@@ -213,7 +220,7 @@ public class CandidateInterviewPortalService {
         response.setRecord(toRecordResponse(record, candidate, position, audios));
         response.setRequirements(extractRequirements(record));
         response.setPrecheckPassed(record != null && "PASSED".equalsIgnoreCase(record.getPrecheckStatus()));
-        response.setProfilePhotoUploaded(record != null && record.getProfilePhotoData() != null);
+        response.setProfilePhotoUploaded(record != null && hasProfilePhoto(record));
         response.setAnswerDeadlineAt(record != null ? record.getAnswerDeadlineAt() : null);
         response.setReadyForInterview(response.isPrecheckPassed() && response.isProfilePhotoUploaded());
         return response;
@@ -344,7 +351,7 @@ public class CandidateInterviewPortalService {
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "请先进入面试房间"));
         record = ensureActiveInterviewWindow(candidate, record, true);
-        if (record.getProfilePhotoData() == null) {
+        if (!hasProfilePhoto(record)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先上传个人照片");
         }
         Instant now = Instant.now();
@@ -396,7 +403,7 @@ public class CandidateInterviewPortalService {
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "尚未创建面试记录"));
         record = ensureActiveInterviewWindow(candidate, record, true);
-        if (record.getProfilePhotoData() == null) {
+        if (!hasProfilePhoto(record)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先上传个人照片");
         }
         if (record.getInterviewStartedAt() == null) {
@@ -413,12 +420,24 @@ public class CandidateInterviewPortalService {
         }
 
         CandidateInterviewAudioEntity audio = resolveAudioEntity(record, request, jobCandidateId);
-        audio.setContentType(StringUtils.hasText(request.getContentType()) ? request.getContentType() : "audio/mpeg");
-        audio.setFileName(StringUtils.hasText(request.getFileName()) ? request.getFileName() : buildAudioFileName(candidate, request.getQuestionSequence()));
+        storageService.delete(toAudioPointer(audio));
+        String fileName = StringUtils.hasText(request.getFileName())
+                ? request.getFileName()
+                : buildAudioFileName(candidate, request.getQuestionSequence());
+        String contentType = StringUtils.hasText(request.getContentType()) ? request.getContentType() : "audio/mpeg";
+        audio.setFileName(fileName);
+        audio.setContentType(contentType);
         audio.setDurationSeconds(request.getDurationSeconds());
-        audio.setSizeBytes((long) data.length);
         audio.setTranscript(request.getTranscript());
-        audio.setAudioData(data);
+        StorageObjectPointer pointer;
+        try {
+            pointer = storageService.upload(StorageCategory.INTERVIEW_AUDIO, fileName, data, contentType);
+        } catch (StorageException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "音频存储失败", e);
+        }
+        audio.setStorageBucket(pointer.bucket());
+        audio.setStoragePath(pointer.path());
+        audio.setSizeBytes(pointer.sizeBytes() != null ? pointer.sizeBytes() : (long) data.length);
         interviewAudioRepository.save(audio);
 
         record.setCurrentQuestionSequence(request.getQuestionSequence());
@@ -578,10 +597,24 @@ public class CandidateInterviewPortalService {
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "图片内容不是有效的 Base64 编码", e);
         }
-        record.setProfilePhotoData(data);
+        storageService.delete(toProfilePhotoPointer(record));
+        String contentType = StringUtils.hasText(request.getContentType()) ? request.getContentType() : "image/jpeg";
+        StorageObjectPointer pointer;
+        try {
+            pointer = storageService.upload(StorageCategory.PROFILE_PHOTO,
+                    request.getFileName(), data, contentType);
+        } catch (StorageException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "头像存储失败", e);
+        }
+        record.setProfilePhotoStorageBucket(pointer.bucket());
+        record.setProfilePhotoStoragePath(pointer.path());
         record.setProfilePhotoFileName(request.getFileName());
-        record.setProfilePhotoContentType(StringUtils.hasText(request.getContentType()) ? request.getContentType() : "image/jpeg");
-        record.setProfilePhotoSizeBytes(request.getSizeBytes() != null ? request.getSizeBytes() : (long) data.length);
+        record.setProfilePhotoContentType(contentType);
+        long size = pointer.sizeBytes() != null ? pointer.sizeBytes() : data.length;
+        if (request.getSizeBytes() != null) {
+            size = request.getSizeBytes();
+        }
+        record.setProfilePhotoSizeBytes(size);
         record.setProfilePhotoUploadedAt(Instant.now());
         CandidateInterviewRecordEntity saved = interviewRecordRepository.save(record);
 
@@ -603,8 +636,9 @@ public class CandidateInterviewPortalService {
         CandidateInterviewRecordEntity record = interviewRecordRepository
                 .findFirstByJobCandidateIdOrderByCreatedAtDesc(jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到面试记录"));
-        byte[] data = record.getProfilePhotoData();
-        if (data == null || data.length == 0) {
+        StorageObjectPointer pointer = toProfilePhotoPointer(record);
+        byte[] data = download(pointer, "未上传头像");
+        if (data.length == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "未上传头像");
         }
         String contentType = StringUtils.hasText(record.getProfilePhotoContentType())
@@ -622,8 +656,9 @@ public class CandidateInterviewPortalService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "邀约不存在"));
         CandidateInterviewAudioEntity audio = interviewAudioRepository.findByAudioIdAndJobCandidateId(audioId, jobCandidateId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "音频不存在"));
-        byte[] data = audio.getAudioData();
-        if (data == null || data.length == 0) {
+        StorageObjectPointer audioPointer = toAudioPointer(audio);
+        byte[] data = download(audioPointer, "音频内容不存在");
+        if (data.length == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "音频内容不存在");
         }
         String contentType = StringUtils.hasText(audio.getContentType()) ? audio.getContentType() : "audio/mpeg";
@@ -739,7 +774,7 @@ public class CandidateInterviewPortalService {
         item.setCandidateEmail(candidate.getCandidateEmail());
         if (record != null) {
             item.setPrecheckPassed("PASSED".equalsIgnoreCase(record.getPrecheckStatus()));
-            item.setProfilePhotoUploaded(record.getProfilePhotoData() != null);
+            item.setProfilePhotoUploaded(hasProfilePhoto(record));
             item.setAnswerDeadlineAt(record.getAnswerDeadlineAt());
             item.setProfilePhoto(toProfilePhotoDto(record, candidate));
         }
@@ -1048,15 +1083,18 @@ public class CandidateInterviewPortalService {
 
     private CandidateInterviewProfilePhotoDto toProfilePhotoDto(CandidateInterviewRecordEntity entity,
                                                                 CompanyJobCandidateEntity candidate) {
-        if (entity == null || entity.getProfilePhotoData() == null) {
+        if (entity == null || !hasProfilePhoto(entity)) {
             return null;
         }
         CandidateInterviewProfilePhotoDto dto = new CandidateInterviewProfilePhotoDto();
         dto.setFileName(entity.getProfilePhotoFileName());
         dto.setContentType(StringUtils.hasText(entity.getProfilePhotoContentType()) ? entity.getProfilePhotoContentType() : "image/jpeg");
-        dto.setSizeBytes(entity.getProfilePhotoSizeBytes() != null
-                ? entity.getProfilePhotoSizeBytes()
-                : (long) entity.getProfilePhotoData().length);
+        StorageObjectPointer pointer = toProfilePhotoPointer(entity);
+        if (entity.getProfilePhotoSizeBytes() != null) {
+            dto.setSizeBytes(entity.getProfilePhotoSizeBytes());
+        } else if (pointer != null && pointer.sizeBytes() != null) {
+            dto.setSizeBytes(pointer.sizeBytes());
+        }
         dto.setUploadedAt(entity.getProfilePhotoUploadedAt());
         dto.setDownloadUrl(String.format("/api/candidate/interview-sessions/%s/profile-photo", candidate.getJobCandidateId()));
         return dto;
@@ -1135,6 +1173,43 @@ public class CandidateInterviewPortalService {
                     entity.setQuestionSequence(request.getQuestionSequence());
                     return entity;
                 });
+    }
+
+    private StorageObjectPointer toProfilePhotoPointer(CandidateInterviewRecordEntity record) {
+        if (record == null || !StringUtils.hasText(record.getProfilePhotoStorageBucket())
+                || !StringUtils.hasText(record.getProfilePhotoStoragePath())) {
+            return null;
+        }
+        return new StorageObjectPointer(record.getProfilePhotoStorageBucket(),
+                record.getProfilePhotoStoragePath(),
+                record.getProfilePhotoSizeBytes(),
+                record.getProfilePhotoContentType());
+    }
+
+    private StorageObjectPointer toAudioPointer(CandidateInterviewAudioEntity audio) {
+        if (audio == null || !StringUtils.hasText(audio.getStorageBucket())
+                || !StringUtils.hasText(audio.getStoragePath())) {
+            return null;
+        }
+        return new StorageObjectPointer(audio.getStorageBucket(),
+                audio.getStoragePath(),
+                audio.getSizeBytes(),
+                audio.getContentType());
+    }
+
+    private boolean hasProfilePhoto(CandidateInterviewRecordEntity record) {
+        return toProfilePhotoPointer(record) != null;
+    }
+
+    private byte[] download(StorageObjectPointer pointer, String failureMessage) {
+        if (pointer == null) {
+            return new byte[0];
+        }
+        try {
+            return storageService.download(pointer);
+        } catch (StorageException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, failureMessage, e);
+        }
     }
 
     private String updateTranscript(String existingJson, CandidateInterviewAnswerRequest request) {

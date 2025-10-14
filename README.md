@@ -95,7 +95,9 @@
       | `position_id`      | CHAR(36)       | 关联岗位 ID |
       | `file_name`        | VARCHAR(255)   | 上传时的原始文件名 |
       | `file_type`        | VARCHAR(100)   | MIME 类型，例如 `application/pdf` |
-      | `file_content`     | BYTEA          | PDF 二进制内容，用于岗位详情页还原原始文档 |
+      | `storage_bucket`   | VARCHAR(128)   | Supabase Object Storage 桶名 |
+      | `storage_path`     | VARCHAR(512)   | Supabase 对象路径，用于下载 |
+      | `file_size_bytes`  | BIGINT         | 原始文件大小，单位字节 |
       | `upload_user_id`   | CHAR(36)       | 上传者用户 ID |
       | `ai_raw_result`    | TEXT           | AI 原始返回 JSON 或错误信息 |
       | `parsed_title`     | VARCHAR(255)   | AI 解析出的岗位名称，可空 |
@@ -294,7 +296,8 @@
       | `resume_id` | UUID (PK) | 简历记录 ID |
       | `job_candidate_id` | UUID | 外键，级联删除 |
       | `file_name` / `file_type` | VARCHAR | 上传原始文件信息 |
-      | `file_content` | BYTEA | 原始 PDF 二进制，用于预览 |
+      | `storage_bucket` / `storage_path` | VARCHAR | Supabase 存储桶与对象路径 |
+      | `file_size_bytes` | BIGINT | 原始文件大小（字节）|
       | `parsed_name` / `parsed_email` / `parsed_phone` | VARCHAR | AI 解析出的关键信息 |
       | `parsed_html` | TEXT | AI 解析的 HTML 富文本（可编辑）|
       | `confidence` | DECIMAL(5,2) | AI 置信度 |
@@ -319,7 +322,7 @@
       | `questions_json` | TEXT | 序列化后的问答数组（`CandidateInterviewQuestionDto[]`）|
       | `transcript_json` | TEXT | 完整对话或语音转写结果（JSON 字符串）|
       | `metadata_json` | TEXT | 自由扩展字段（题目分类、得分明细等）|
-      | `profile_photo_data` | BYTEA | 候选人头像二进制数据 |
+      | `profile_photo_storage_bucket` / `profile_photo_storage_path` | VARCHAR | Supabase 桶与对象路径 |
       | `profile_photo_file_name` / `profile_photo_content_type` | VARCHAR | 头像文件名与 MIME |
       | `profile_photo_size_bytes` | BIGINT | 头像大小（字节）|
       | `profile_photo_uploaded_at` | TIMESTAMP | 头像上传时间 |
@@ -336,7 +339,7 @@
       | `duration_seconds` | INTEGER | 音频时长（秒）|
       | `size_bytes` | BIGINT | 文件大小（字节）|
       | `transcript` | VARCHAR(2000) | 音频摘要/转写，可空 |
-      | `audio_data` | BYTEA | 音频二进制内容（Base64 解码后写入）|
+      | `storage_bucket` / `storage_path` | VARCHAR | Supabase 桶名与对象路径 |
       | `created_at` / `updated_at` | TIMESTAMP | 审计字段 |
 
     candidate_ai_evaluations 表（AI 评估报告）

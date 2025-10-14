@@ -3,7 +3,6 @@ package com.example.grpcdemo.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -28,9 +27,14 @@ public class CompanyJobDocumentEntity {
     @Column(name = "file_type", length = 100)
     private String fileType;
 
-    @Lob
-    @Column(name = "file_content")
-    private byte[] fileContent;
+    @Column(name = "storage_bucket", length = 128)
+    private String storageBucket;
+
+    @Column(name = "storage_path", length = 512)
+    private String storagePath;
+
+    @Column(name = "file_size_bytes")
+    private Long fileSizeBytes;
 
     @Column(name = "upload_user_id", length = 36)
     private String uploadUserId;
@@ -89,12 +93,28 @@ public class CompanyJobDocumentEntity {
         this.fileType = fileType;
     }
 
-    public byte[] getFileContent() {
-        return fileContent;
+    public String getStorageBucket() {
+        return storageBucket;
     }
 
-    public void setFileContent(byte[] fileContent) {
-        this.fileContent = fileContent;
+    public void setStorageBucket(String storageBucket) {
+        this.storageBucket = storageBucket;
+    }
+
+    public String getStoragePath() {
+        return storagePath;
+    }
+
+    public void setStoragePath(String storagePath) {
+        this.storagePath = storagePath;
+    }
+
+    public Long getFileSizeBytes() {
+        return fileSizeBytes;
+    }
+
+    public void setFileSizeBytes(Long fileSizeBytes) {
+        this.fileSizeBytes = fileSizeBytes;
     }
 
     public String getUploadUserId() {

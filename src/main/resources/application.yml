@@ -30,3 +30,21 @@ ai:
     base-url: http://localhost:8091
   interview-service:
     base-url: http://localhost:8092
+
+supabase:
+  project-url: ${SUPABASE_PROJECT_URL:https://project.supabase.co}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+  storage:
+    public-url: ${SUPABASE_STORAGE_PUBLIC_URL:${supabase.project-url}/storage/v1/object/public}
+    job-documents:
+      name: ${SUPABASE_BUCKET_JOB_DOCUMENTS:job-documents}
+      path-prefix: job-documents
+    resumes:
+      name: ${SUPABASE_BUCKET_RESUMES:resumes}
+      path-prefix: resumes
+    interview-audios:
+      name: ${SUPABASE_BUCKET_INTERVIEW_AUDIOS:interview-audios}
+      path-prefix: interview-audios
+    profile-photos:
+      name: ${SUPABASE_BUCKET_PROFILE_PHOTOS:profile-photos}
+      path-prefix: profile-photos
