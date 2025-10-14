@@ -1,9 +1,11 @@
 package com.example.grpcdemo.auth;
 
 import com.example.grpcdemo.entity.AuthVerificationCodeEntity;
+import com.example.grpcdemo.entity.TrialInvitationEntity;
 import com.example.grpcdemo.entity.UserAccountEntity;
 import com.example.grpcdemo.entity.UserAccountStatus;
 import com.example.grpcdemo.repository.AuthVerificationCodeRepository;
+import com.example.grpcdemo.repository.TrialInvitationRepository;
 import com.example.grpcdemo.repository.UserAccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +25,12 @@ public class AuthManager {
     private static final Logger log = LoggerFactory.getLogger(AuthManager.class);
     private static final Duration CODE_TTL = Duration.ofMinutes(5);
     private static final Duration RESEND_INTERVAL = Duration.ofMinutes(1);
+    private static final Duration TRIAL_INVITATION_TTL = Duration.ofDays(14);
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
     private final UserAccountRepository userRepository;
     private final AuthVerificationCodeRepository verificationCodeRepository;
+    private final TrialInvitationRepository trialInvitationRepository;
     private final PasswordEncoder passwordEncoder;
     private final VerificationCodeSender verificationCodeSender;
     private final SecureRandom random;
@@ -34,12 +38,14 @@ public class AuthManager {
 
     public AuthManager(UserAccountRepository userRepository,
                        AuthVerificationCodeRepository verificationCodeRepository,
+                       TrialInvitationRepository trialInvitationRepository,
                        PasswordEncoder passwordEncoder,
                        VerificationCodeSender verificationCodeSender,
                        SecureRandom random,
                        Clock clock) {
         this.userRepository = userRepository;
         this.verificationCodeRepository = verificationCodeRepository;
+        this.trialInvitationRepository = trialInvitationRepository;
         this.passwordEncoder = passwordEncoder;
         this.verificationCodeSender = verificationCodeSender;
         this.random = random;
@@ -139,7 +145,11 @@ public class AuthManager {
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new AuthException(AuthErrorCode.INVALID_CREDENTIALS);
         }
-        user.setLastLoginAt(clock.instant());
+        Instant now = clock.instant();
+        if (role == AuthRole.COMPANY) {
+            ensureActiveTrialInvitation(normalizedEmail, now);
+        }
+        user.setLastLoginAt(now);
         if (user.getStatus() == UserAccountStatus.PENDING) {
             user.setStatus(UserAccountStatus.ACTIVE);
         }
@@ -215,6 +225,19 @@ public class AuthManager {
         long elapsed = Duration.between(lastSentAt, now).getSeconds();
         long wait = RESEND_INTERVAL.getSeconds() - elapsed;
         return Math.max(wait, 0);
+    }
+
+    private void ensureActiveTrialInvitation(String email, Instant now) {
+        TrialInvitationEntity invitation = trialInvitationRepository
+                .findTopByEmailOrderBySentAtDesc(email)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.TRIAL_INVITE_NOT_SENT));
+        Instant sentAt = invitation.getSentAt();
+        if (sentAt == null) {
+            throw new AuthException(AuthErrorCode.TRIAL_INVITE_NOT_SENT);
+        }
+        if (Duration.between(sentAt, now).compareTo(TRIAL_INVITATION_TTL) > 0) {
+            throw new AuthException(AuthErrorCode.TRIAL_INVITE_EXPIRED);
+        }
     }
 
     private String normalizeEmail(String email) {

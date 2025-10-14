@@ -3,6 +3,7 @@ package com.example.grpcdemo.config;
 import com.example.grpcdemo.auth.AuthManager;
 import com.example.grpcdemo.auth.VerificationCodeSender;
 import com.example.grpcdemo.repository.AuthVerificationCodeRepository;
+import com.example.grpcdemo.repository.TrialInvitationRepository;
 import com.example.grpcdemo.repository.UserAccountRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,7 @@ public class AuthConfig {
     @Bean
     public AuthManager authManager(UserAccountRepository userRepository,
                                    AuthVerificationCodeRepository verificationCodeRepository,
+                                   TrialInvitationRepository trialInvitationRepository,
                                    PasswordEncoder passwordEncoder,
                                    VerificationCodeSender verificationCodeSender,
                                    SecureRandom secureRandom,
@@ -27,6 +29,7 @@ public class AuthConfig {
         return new AuthManager(
                 userRepository,
                 verificationCodeRepository,
+                trialInvitationRepository,
                 passwordEncoder,
                 verificationCodeSender,
                 secureRandom,

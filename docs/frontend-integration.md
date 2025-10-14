@@ -99,6 +99,37 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 }
 ```
 
+#### 企业端 14 天试用邀请码校验
+
+为配合企业端试用流程，后端在企业端入口（`/api/b/auth/login`、`/api/company/auth/login`）新增了对邀请码发送状态的校验逻辑：
+
+1. 后端会根据用户邮箱在 `trial_invitations` 表中查询最近一次发送记录。
+2. 如果未找到记录，返回错误码 `TRIAL_INVITE_NOT_SENT`，HTTP 状态码 403。
+3. 如果找到的记录发送时间距今超过 14 天，同样会拒绝登录，并返回错误码 `TRIAL_INVITE_EXPIRED`（HTTP 状态码 403）。
+4. 仅当存在有效期内的邀请码发送记录时，登录才会继续执行密码校验并返回 token。
+
+错误码示例：
+
+```json
+{
+  "errorCode": "TRIAL_INVITE_NOT_SENT",
+  "message": "尚未发送邀请码"
+}
+```
+
+```json
+{
+  "errorCode": "TRIAL_INVITE_EXPIRED",
+  "message": "邀请码已经过期，请重新申请"
+}
+```
+
+前端处理建议：
+
+- `TRIAL_INVITE_NOT_SENT`：提示用户暂未获得免费试用资格，并跳转到注册申请页面。
+- `TRIAL_INVITE_EXPIRED`：提示“邀请码已经过期，请重新申请”，并引导用户重新提交试用申请。
+- 其他错误码保持与之前相同的处理方式。
+
 ### 4. 忘记密码 / 重置密码
 - **Endpoint**：`POST /api/{segment}/auth/password/reset`
 - **Request body** (`ResetPasswordRequest`):
@@ -118,6 +149,20 @@ All requests/响应均为 JSON，所有字段都带有后端校验（邮箱格�
 ### 前端流程建议
 1. **注册**：发送 purpose=`REGISTER` 的验证码 → 输入验证码连同邮箱、密码一起提交注册 → 保存返回的 `userId` 与令牌。
 2. **忘记密码**：发送 purpose=`RESET_PASSWORD` 的验证码 → 用户填写验证码与新密码 → 调用重置接口 → 引导回登录页重新登录。
+
+#### `trial_invitations` 数据表
+
+企业端登录校验依赖 `trial_invitations` 表记录邀请码发送历史，字段如下：
+
+| 字段名          | 说明                       |
+| --------------- | -------------------------- |
+| `invitation_id` | 记录主键 UUID              |
+| `email`         | 收件人邮箱（统一转为小写） |
+| `sent_at`       | 邀请码发送时间             |
+| `created_at`    | 创建时间（数据库维护）     |
+| `updated_at`    | 更新时间（数据库维护）     |
+
+当外部系统向企业用户发出 14 天试用邀请码时，请写入/更新该表，以便后端能够在登录时识别有效资格。
 
 ## 企业资料维护（企业端）
 
