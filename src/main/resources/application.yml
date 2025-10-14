@@ -1,22 +1,28 @@
-server:
-  port: 8080   # Spring Boot 自己的 Web 端口 (如果你以后要加 REST API)
-
 grpc:
   server:
-    port: 9091   # gRPC 服务端口，BloomRPC 就连 localhost:9091
+    address: 0.0.0.0
+    port: 5051   # 部署在服务器上对外提供的 gRPC 端口
 
 spring:
+  main:
+    web-application-type: none
   datasource:
-    url: jdbc:h2:file:./data/reports;AUTO_SERVER=TRUE
-    driverClassName: org.h2.Driver
-    username: sa
-    password:
+    url: ${SUPABASE_DB_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require}
+    driver-class-name: org.postgresql.Driver
+    username: ${SUPABASE_DB_USER:postgres.ecqxglofqhtfkmjcgefi}
+    password: ${SUPABASE_DB_PASSWORD:}
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 5
+      connection-timeout: 30000
+      data-source-properties:
+        application_name: grpc-demo
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   rabbitmq:
     host: localhost
     port: 5672
