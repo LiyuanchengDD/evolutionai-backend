@@ -150,7 +150,7 @@ public class SupabaseStorageService {
             return null;
         }
         String normalized = Normalizer.normalize(originalFileName, Normalizer.Form.NFKD)
-                .replaceAll("[^\\w\\.\-]+", "-")
+                .replaceAll("[^\\\\w.\\-]+", "-")
                 .replaceAll("-+", "-");
         return normalized.toLowerCase(Locale.ROOT);
     }
