@@ -12,7 +12,7 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres}
     driverClassName: org.postgresql.Driver
     username: ${SPRING_DATASOURCE_USERNAME:postgres.ecqxglofqhtfkmjcgefi}
-    password: ${SUPABASE_DB_PASSWORD:${SPRING_DATASOURCE_PASSWORD:}}
+    password: ${SUPABASE_DB_PASSWORD:${SPRING_DATASOURCE_PASSWORD:chengcheng2zJ}}
   jpa:
     hibernate:
       ddl-auto: update
