@@ -120,7 +120,7 @@ public class SecurityConfig {
             private final UserJwtAuthenticationConverter delegate = new UserJwtAuthenticationConverter();
 
             @Override
-            protected org.springframework.security.core.Authentication convert(Jwt jwt) {
+            public org.springframework.security.authentication.AbstractAuthenticationToken convert(Jwt jwt) {
                 return delegate.convert(jwt);
             }
         };
