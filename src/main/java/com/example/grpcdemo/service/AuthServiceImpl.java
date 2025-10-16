@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -78,18 +79,29 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
         username = username.trim();
 
-        userRepository.findByEmailIgnoreCase(username)
+        Optional<UserAccountEntity> matchedUser = userRepository.findByEmailIgnoreCase(username)
                 .filter(entity -> rolesMatch(entity.getRole(), request.getRole()))
-                .filter(entity -> passwordEncoder.matches(password, entity.getPasswordHash()))
-                .ifPresentOrElse(entity -> {
-                    entity.setLastLoginAt(Instant.now());
-                    userRepository.save(entity);
-                    UserResponse response = buildUserResponse(entity, entity.getRole(), username);
-                    responseObserver.onNext(response);
-                    responseObserver.onCompleted();
-                }, () -> responseObserver.onError(Status.UNAUTHENTICATED
-                        .withDescription("Invalid username, password, or role")
-                        .asRuntimeException()));
+                .filter(entity -> passwordEncoder.matches(password, entity.getPasswordHash()));
+
+        if (matchedUser.isPresent()) {
+            handleSuccessfulLogin(matchedUser.get(), username, responseObserver);
+            return;
+        }
+
+        responseObserver.onError(Status.UNAUTHENTICATED
+                .withDescription("Invalid username, password, or role")
+                .asRuntimeException());
+    }
+
+    private void handleSuccessfulLogin(UserAccountEntity entity,
+                                       String username,
+                                       StreamObserver<UserResponse> responseObserver) {
+        entity.setLastLoginAt(Instant.now());
+        userRepository.save(entity);
+
+        UserResponse response = buildUserResponse(entity, entity.getRole(), username);
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
     }
 
     private UserResponse buildUserResponse(UserAccountEntity entity, String role, String username) {
