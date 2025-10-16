@@ -6,8 +6,6 @@ grpc:
 spring:
   application:
     name: grpc-demo
-  main:
-    web-application-type: none
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres}
     driverClassName: org.postgresql.Driver
@@ -50,3 +48,17 @@ supabase:
     profile-photos:
       name: ${SUPABASE_BUCKET_PROFILE_PHOTOS:profile-photos}
       path-prefix: profile-photos
+
+app:
+  auth:
+    mode: ${APP_AUTH_MODE:supabase}
+    env: ${APP_ENV:dev}
+    supabase:
+      project-url: ${SUPABASE_PROJECT_URL:https://project.supabase.co}
+      jwks-url: ${SUPABASE_JWKS_URL:https://project.supabase.co/auth/v1/jwks}
+    dev-otp:
+      code: ${DEV_OTP_CODE:123456}
+      jwt-secret: ${DEV_JWT_SECRET:change-me-please}
+      jwt-expires-min: ${DEV_JWT_EXPIRES_MIN:1440}
+      user-id: ${DEV_USER_ID:00000000-0000-0000-0000-000000000000}
+      user-email: ${DEV_USER_EMAIL:dev@example.com}
