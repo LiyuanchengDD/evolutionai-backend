@@ -1,14 +1,24 @@
-# 一,登陆注册页面接口技术文档
-  ## 1.沿用原有官网的登陆注册流程
-  ## 2.接口设计：
-    所有账号体系接口由 `AuthController` 暴露，统一的前缀为 `/api/{segment}/auth/...`。`{segment}` 支持 `b`/`company`（企业端）和 `c`/`engineer`（工程师端），内部会映射到对应的 `AuthRole`。
-    | 方法 | URI | 描述 |
-    | --- | --- | --- |
-    | `POST` | `/api/{segment}/auth/password/reset/send-code` | 发送验证码。请求体包含 `email` 与 `purpose`（`REGISTER` 或 `RESET_PASSWORD`），用于注册和找回密码两个场景。|
-    | `POST` | `/api/{segment}/auth/register` | 注册：校验验证码并创建用户，返回访问与刷新令牌。|
-    | `POST` | `/api/{segment}/auth/login` | 登录：邮箱+密码校验，返回访问与刷新令牌。|
-    | `POST` | `/api/{segment}/auth/password/reset` | 重置密码：校验验证码后写入新密码。|
-  ## 3.数据库设计
+## 登录与鉴权
+
+项目已切换为 **Supabase + Spring Security OAuth2 Resource Server** 模式，后端仅负责
+校验前端携带的 JWT：
+
+* `APP_AUTH_MODE=supabase`（正式 / 预发）：只接受 Supabase 签发的访问令牌，`iss` 必须为
+  `${SUPABASE_PROJECT_URL}/auth/v1`。
+* `APP_AUTH_MODE=dev-otp`（本地 / 联调占位）：优先校验 Supabase JWT，失败后允许使用
+  `/dev/auth/send-otp`、`/dev/auth/verify-otp` 生成的开发 token。`APP_ENV=prod` 时禁止启用。
+
+开发模式下可通过 `DEV_OTP_CODE`、`DEV_JWT_SECRET` 等环境变量调整验证码与 token 配置，详见
+`src/main/resources/application.yml` 与 `docs/frontend-integration.md`。
+
+公共用户信息接口：`GET /auth/me` 会返回 `userId`、`email`、`dev` 标记以及试用期状态
+(`active`/`not_sent`/`expired`)。【F:src/main/java/com/example/grpcdemo/controller/AuthMeController.java†L7-L37】
+
+试用期仍依赖 `trial_invitations` 表，拦截逻辑迁移至 `TrialAccessFilter`，对所有业务接口
+生效（白名单：`/public/**`、`/health`、`/auth/me`、`/dev/auth/**`）。【F:src/main/java/com/example/grpcdemo/security/trial/TrialAccessFilter.java†L18-L78】
+
+## 数据库概览
+
     `user_accounts` 表
   | 字段                          | 类型                                | 说明        |
   | `user_id`                   | UUID PRIMARY KEY                 | 主键        |
@@ -19,18 +29,9 @@
   | `created_at` / `updated_at` | TIMESTAMPTZ                       | 创建/更新时间（由触发器维护）|
   | `last_login_at`             | TIMESTAMPTZ                       | 最近登录      |
 
-    验证码表 `auth_verification_codes`
+    验证码表 `auth_verification_codes`（已废弃）
   | 字段             | 类型            | 说明 |
-  | `code_id`       | UUID PRIMARY KEY | 验证码记录 ID |
-  | `email`         | VARCHAR(255)     | 对应用户邮箱（已标准化）|
-  | `role`          | VARCHAR(32)      | 入口角色（company/engineer/admin）|
-  | `purpose`       | VARCHAR(32)      | `REGISTER` 或 `RESET_PASSWORD` |
-  | `code`          | VARCHAR(16)      | 验证码内容 |
-  | `expires_at`    | TIMESTAMPTZ      | 过期时间（默认 5 分钟）|
-  | `consumed`      | BOOLEAN          | 是否已使用 |
-  | `last_sent_at`  | TIMESTAMPTZ      | 上次发送时间（用于 1 分钟的重发间隔控制）|
-  | `request_id`    | UUID             | 对应的发送请求 ID，便于追踪日志 |
-  | `created_at` / `updated_at` | TIMESTAMPTZ | 创建/更新时间（`updated_at` 由触发器刷新）|
+  | `code_id`       | UUID PRIMARY KEY | **已移除**，迁移至 Supabase Auth OTP 流程 |
 
 # 二,企业端注册四步引导功能
   ## 1.功能概述

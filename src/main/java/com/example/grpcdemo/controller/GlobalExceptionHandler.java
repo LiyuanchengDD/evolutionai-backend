@@ -1,7 +1,5 @@
 package com.example.grpcdemo.controller;
 
-import com.example.grpcdemo.auth.AuthErrorCode;
-import com.example.grpcdemo.auth.AuthException;
 import com.example.grpcdemo.controller.dto.ErrorResponse;
 import com.example.grpcdemo.onboarding.OnboardingErrorCode;
 import com.example.grpcdemo.onboarding.OnboardingException;
@@ -28,17 +26,10 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("VALIDATION_ERROR", message));
     }
 
-    @ExceptionHandler(AuthException.class)
-    public ResponseEntity<ErrorResponse> handleAuthException(AuthException exception) {
-        AuthErrorCode code = exception.getErrorCode();
-        return ResponseEntity.status(code.getHttpStatus())
-                .body(new ErrorResponse(code.name(), exception.getMessage()));
-    }
-
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(AuthErrorCode.INVALID_ROLE.name(), exception.getMessage()));
+                .body(new ErrorResponse("INVALID_ARGUMENT", exception.getMessage()));
     }
 
     @ExceptionHandler(OnboardingException.class)

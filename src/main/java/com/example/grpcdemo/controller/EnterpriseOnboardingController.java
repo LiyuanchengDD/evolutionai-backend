@@ -6,6 +6,7 @@ import com.example.grpcdemo.controller.dto.EnterpriseStep3Request;
 import com.example.grpcdemo.controller.dto.EnterpriseVerifyRequest;
 import com.example.grpcdemo.controller.dto.LocationOptionDto;
 import com.example.grpcdemo.controller.dto.OnboardingStateResponse;
+import com.example.grpcdemo.security.AuthenticatedUser;
 import com.example.grpcdemo.service.EnterpriseOnboardingService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +16,9 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -32,8 +36,10 @@ public class EnterpriseOnboardingController {
     }
 
     @GetMapping("/state")
-    public OnboardingStateResponse getState(@RequestParam("userId") String userId,
+    public OnboardingStateResponse getState(@AuthenticationPrincipal AuthenticatedUser user,
+                                            @RequestParam("userId") String userId,
                                             @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        ensureUserMatches(user, userId);
         return onboardingService.getState(userId, acceptLanguage);
 
     }
@@ -51,26 +57,40 @@ public class EnterpriseOnboardingController {
     }
 
     @PostMapping("/step1")
-    public OnboardingStateResponse saveStep1(@Valid @RequestBody EnterpriseStep1Request request,
+    public OnboardingStateResponse saveStep1(@AuthenticationPrincipal AuthenticatedUser user,
+                                            @Valid @RequestBody EnterpriseStep1Request request,
                                             @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        ensureUserMatches(user, request.getUserId());
         return onboardingService.saveStep1(request, acceptLanguage);
     }
 
     @PostMapping("/step2")
-    public OnboardingStateResponse saveStep2(@Valid @RequestBody EnterpriseStep2Request request,
+    public OnboardingStateResponse saveStep2(@AuthenticationPrincipal AuthenticatedUser user,
+                                            @Valid @RequestBody EnterpriseStep2Request request,
                                             @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        ensureUserMatches(user, request.getUserId());
         return onboardingService.saveStep2(request, acceptLanguage);
     }
 
     @PostMapping("/step3")
-    public OnboardingStateResponse saveStep3(@Valid @RequestBody EnterpriseStep3Request request,
+    public OnboardingStateResponse saveStep3(@AuthenticationPrincipal AuthenticatedUser user,
+                                            @Valid @RequestBody EnterpriseStep3Request request,
                                             @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        ensureUserMatches(user, request.getUserId());
         return onboardingService.saveStep3(request, acceptLanguage);
     }
 
     @PostMapping("/verify")
-    public OnboardingStateResponse verify(@Valid @RequestBody EnterpriseVerifyRequest request,
+    public OnboardingStateResponse verify(@AuthenticationPrincipal AuthenticatedUser user,
+                                         @Valid @RequestBody EnterpriseVerifyRequest request,
                                          @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
+        ensureUserMatches(user, request.getUserId());
         return onboardingService.verifyAndComplete(request, acceptLanguage);
+    }
+
+    private void ensureUserMatches(AuthenticatedUser user, String userId) {
+        if (userId == null || !userId.equals(user.userId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "用户身份不匹配");
+        }
     }
 }
