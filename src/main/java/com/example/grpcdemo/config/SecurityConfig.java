@@ -30,6 +30,8 @@ import org.springframework.security.web.authentication.www.BasicAuthenticationFi
 import org.springframework.util.StringUtils;
 
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -131,7 +133,11 @@ public class SecurityConfig {
                 code = "TOKEN_EXPIRED";
                 message = "访问令牌已过期";
             }
-            response.getWriter().write("{\"errorCode\":\"" + code + "\",\"message\":\"" + message + "\"}");
+            try {
+                response.getWriter().write("{\"errorCode\":\"" + code + "\",\"message\":\"" + message + "\"}");
+            } catch (IOException ex) {
+                throw new UncheckedIOException("Failed to write unauthorized response", ex);
+            }
         };
     }
 
@@ -139,7 +145,11 @@ public class SecurityConfig {
         return (request, response, accessDeniedException) -> {
             response.setStatus(HttpStatus.FORBIDDEN.value());
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"errorCode\":\"FORBIDDEN\",\"message\":\"无权访问该资源\"}");
+            try {
+                response.getWriter().write("{\"errorCode\":\"FORBIDDEN\",\"message\":\"无权访问该资源\"}");
+            } catch (IOException ex) {
+                throw new UncheckedIOException("Failed to write forbidden response", ex);
+            }
         };
     }
 }
