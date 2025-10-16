@@ -6,36 +6,48 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.UUID;
 
-/**
- * Records when a company user has been sent a 14-day free trial invitation code.
- */
 @Entity
 @Table(name = "trial_invitations")
 public class TrialInvitationEntity {
 
     @Id
-    @Column(name = "invitation_id", nullable = false, length = 36)
-    private String invitationId;
+    @Column(name = "id", nullable = false)
+    private UUID id;
+
+    @Column(name = "company_id", nullable = false)
+    private UUID companyId;
 
     @Column(name = "email", nullable = false, length = 255)
     private String email;
 
+    @Column(name = "code", nullable = false, length = 255)
+    private String code;
+
     @Column(name = "sent_at", nullable = false)
     private Instant sentAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
-    private Instant createdAt;
+    @Column(name = "redeemed_at")
+    private Instant redeemedAt;
 
-    @Column(name = "updated_at", nullable = false, updatable = false, insertable = false)
-    private Instant updatedAt;
+    @Column(name = "redeemed_by")
+    private UUID redeemedBy;
 
-    public String getInvitationId() {
-        return invitationId;
+    public UUID getId() {
+        return id;
     }
 
-    public void setInvitationId(String invitationId) {
-        this.invitationId = invitationId;
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public UUID getCompanyId() {
+        return companyId;
+    }
+
+    public void setCompanyId(UUID companyId) {
+        this.companyId = companyId;
     }
 
     public String getEmail() {
@@ -46,6 +58,14 @@ public class TrialInvitationEntity {
         this.email = email;
     }
 
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
     public Instant getSentAt() {
         return sentAt;
     }
@@ -54,11 +74,19 @@ public class TrialInvitationEntity {
         this.sentAt = sentAt;
     }
 
-    public Instant getCreatedAt() {
-        return createdAt;
+    public Instant getRedeemedAt() {
+        return redeemedAt;
     }
 
-    public Instant getUpdatedAt() {
-        return updatedAt;
+    public void setRedeemedAt(Instant redeemedAt) {
+        this.redeemedAt = redeemedAt;
+    }
+
+    public UUID getRedeemedBy() {
+        return redeemedBy;
+    }
+
+    public void setRedeemedBy(UUID redeemedBy) {
+        this.redeemedBy = redeemedBy;
     }
 }

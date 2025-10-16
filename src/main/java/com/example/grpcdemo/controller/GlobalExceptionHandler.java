@@ -3,6 +3,8 @@ package com.example.grpcdemo.controller;
 import com.example.grpcdemo.controller.dto.ErrorResponse;
 import com.example.grpcdemo.onboarding.OnboardingErrorCode;
 import com.example.grpcdemo.onboarding.OnboardingException;
+import com.example.grpcdemo.security.trial.TrialErrorCode;
+import com.example.grpcdemo.security.trial.TrialException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -35,6 +37,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OnboardingException.class)
     public ResponseEntity<ErrorResponse> handleOnboardingException(OnboardingException exception) {
         OnboardingErrorCode code = exception.getErrorCode();
+        String message = exception.getMessage() != null ? exception.getMessage() : code.getDefaultMessage();
+        return ResponseEntity.status(code.getHttpStatus())
+                .body(new ErrorResponse(code.name(), message));
+    }
+
+    @ExceptionHandler(TrialException.class)
+    public ResponseEntity<ErrorResponse> handleTrialException(TrialException exception) {
+        TrialErrorCode code = exception.getErrorCode();
         String message = exception.getMessage() != null ? exception.getMessage() : code.getDefaultMessage();
         return ResponseEntity.status(code.getHttpStatus())
                 .body(new ErrorResponse(code.name(), message));

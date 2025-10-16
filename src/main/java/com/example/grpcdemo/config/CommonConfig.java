@@ -9,7 +9,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 
 @Configuration
-@EnableConfigurationProperties(SupabaseStorageProperties.class)
+@EnableConfigurationProperties({SupabaseStorageProperties.class, AppTrialProperties.class})
 public class CommonConfig {
 
     @Bean

@@ -62,3 +62,9 @@ app:
       jwt-expires-min: ${DEV_JWT_EXPIRES_MIN:1440}
       user-id: ${DEV_USER_ID:00000000-0000-0000-0000-000000000000}
       user-email: ${DEV_USER_EMAIL:dev@example.com}
+  trial:
+    mode: ${APP_TRIAL_MODE:dev-fixed}
+    env: ${APP_ENV:dev}
+    valid-days: ${TRIAL_VALID_DAYS:14}
+    dev:
+      code: ${DEV_TRIAL_CODE:EA-TRIAL-123456}

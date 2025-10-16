@@ -40,30 +40,60 @@ CREATE TABLE IF NOT EXISTS public.user_accounts (
 CREATE INDEX IF NOT EXISTS user_accounts_email_idx
     ON public.user_accounts (email);
 
-CREATE TABLE IF NOT EXISTS public.trial_invitations (
-    invitation_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email         citext      NOT NULL,
-    sent_at       timestamptz NOT NULL,
-    created_at    timestamptz NOT NULL DEFAULT now(),
-    updated_at    timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS trial_invitations_email_idx
-    ON public.trial_invitations (email);
-
-DROP TRIGGER IF EXISTS set_trial_invitations_updated_at
-    ON public.trial_invitations;
-CREATE TRIGGER set_trial_invitations_updated_at
-    BEFORE UPDATE ON public.trial_invitations
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_updated_at();
-
 DROP TRIGGER IF EXISTS set_user_accounts_updated_at
     ON public.user_accounts;
 CREATE TRIGGER set_user_accounts_updated_at
     BEFORE UPDATE ON public.user_accounts
     FOR EACH ROW
     EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TYPE IF NOT EXISTS public.user_kind AS ENUM ('individual', 'enterprise');
+
+CREATE TABLE IF NOT EXISTS public.user_profiles (
+    id          uuid PRIMARY KEY,
+    kind        public.user_kind NOT NULL DEFAULT 'individual',
+    company_id  uuid,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.trial_invitations (
+    id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id   uuid        NOT NULL,
+    email        citext      NOT NULL,
+    code         text        NOT NULL,
+    sent_at      timestamptz NOT NULL DEFAULT now(),
+    redeemed_at  timestamptz,
+    redeemed_by  uuid,
+    CONSTRAINT trial_invitations_company_fk FOREIGN KEY (company_id) REFERENCES public.company_profiles (company_id) ON DELETE CASCADE,
+    CONSTRAINT trial_invitations_email_code_uidx UNIQUE (email, code)
+);
+
+CREATE INDEX IF NOT EXISTS trial_invitations_email_idx
+    ON public.trial_invitations (email);
+
+CREATE INDEX IF NOT EXISTS trial_invitations_sent_at_idx
+    ON public.trial_invitations (sent_at);
+
+CREATE INDEX IF NOT EXISTS trial_invitations_company_id_idx
+    ON public.trial_invitations (company_id);
+
+CREATE TYPE IF NOT EXISTS public.review_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+
+CREATE TABLE IF NOT EXISTS public.trial_applications (
+    id                 uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    applicant_user_id  uuid        NOT NULL,
+    company_name       text        NOT NULL,
+    contact_email      citext      NOT NULL,
+    reason             text,
+    status             public.review_status NOT NULL DEFAULT 'PENDING',
+    reviewed_by        uuid,
+    reviewed_at        timestamptz,
+    note               text,
+    created_at         timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS trial_applications_status_idx
+    ON public.trial_applications (status);
 
 -- ============================================================================
 --  Enterprise onboarding persistence
