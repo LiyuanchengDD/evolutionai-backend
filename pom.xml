@@ -253,17 +253,21 @@
           <phase>generate-sources</phase>
           <goals>
             <!--
-              We deliberately use set-property instead of set-system-properties so that
-              the newly set value becomes part of the MavenProject model.  The protobuf
-              plugin reads ${proto.skip} from the project properties for every
-              lifecycle invocation, therefore updating the system properties alone was
-              not enough to prevent a second code generation pass.
+              The plugin only offers set-system-properties in the declared version, so
+              we flip the proto.skip flag via a system property after the first
+              generate-sources run.  Maven resolves project expressions against system
+              properties as well, which is enough to prevent the second protobuf code
+              generation pass in the same invocation.
             -->
-            <goal>set-property</goal>
+            <goal>set-system-properties</goal>
           </goals>
           <configuration>
-            <name>proto.skip</name>
-            <value>true</value>
+            <properties>
+              <property>
+                <name>proto.skip</name>
+                <value>true</value>
+              </property>
+            </properties>
           </configuration>
         </execution>
       </executions>
