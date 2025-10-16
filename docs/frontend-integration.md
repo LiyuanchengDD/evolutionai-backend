@@ -52,6 +52,22 @@ DEV_TRIAL_CODE=EA-TRIAL-123456
 
 后端仅负责验证 Supabase 签发的 token，不再提供注册/登录接口。
 
+### 用户类型同步
+
+Supabase 的 OTP 登录不会在 token 中携带“个人 / 企业”标记。前端在拿到 access token 后需要额外
+调用 `PUT /auth/kind` 告诉后端当前登录入口，例如：
+
+```http
+PUT /auth/kind
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{ "kind": "enterprise" }
+```
+
+`kind` 仅接受 `individual` 或 `enterprise`，未调用时默认会按个人用户处理，无法访问
+`/api/enterprise/**` 路由。接口会返回与 `GET /auth/me` 相同结构，可直接复用以刷新前端状态。
+
 ### dev-otp 占位模式
 
 便于前端在未接入 Supabase 之前完成接口联调。流程：
@@ -117,7 +133,7 @@ DEV_TRIAL_CODE=EA-TRIAL-123456
 * `expired`：超过 `TRIAL_VALID_DAYS` 有效期。
 
 `/auth/me` 不受试用期拦截影响，便于前端在 403 前获取状态提示。实现见
-`AuthMeController`。【F:src/main/java/com/example/grpcdemo/controller/AuthMeController.java†L7-L52】
+`AuthMeController`。【F:src/main/java/com/example/grpcdemo/controller/AuthMeController.java†L39-L103】
 
 ## 试用申请与固定码联调
 

@@ -27,7 +27,9 @@
 
 ### 1.6 `/auth/me`
 Supabase 或开发 Token 登录成功后调用 `/auth/me` 可获取当前用户 ID、角色与试用期快照。
-当过滤器尚未写入试用状态时，控制器会回退到依据邮箱查询试用资格。【F:src/main/java/com/example/grpcdemo/controller/AuthMeController.java†L20-L50】
+当过滤器尚未写入试用状态时，控制器会回退到依据邮箱查询试用资格。若需要区分“个人 / 企业”入口，
+前端需在拿到 access token 后调用 `PUT /auth/kind` 将 `kind` 设置为 `individual` 或 `enterprise`，接口会回传最新的 `/auth/me`
+结构，便于前端一次性刷新状态。【F:src/main/java/com/example/grpcdemo/controller/AuthMeController.java†L39-L103】
 
 ### 1.7 试用期访问过滤器
 所有 `/api/enterprise/**` 路由都会经过 `TrialAccessFilter`：过滤器会确认认证用户绑定了企业资料并拥有企业 ID，
