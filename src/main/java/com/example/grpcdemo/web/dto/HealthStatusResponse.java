@@ -24,7 +24,7 @@ public record HealthStatusResponse(
                 null);
     }
 
-    public static HealthStatusResponse channelReady() {
+    public static HealthStatusResponse channelReadyResponse() {
         return new HealthStatusResponse(true, null, null, Boolean.TRUE, null);
     }
 

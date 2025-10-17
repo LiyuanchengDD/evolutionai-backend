@@ -44,7 +44,7 @@ public class HealthGatewayService {
             if (FALLBACK_STATUSES.contains(exception.getStatus().getCode())) {
                 boolean ready = awaitChannelReady();
                 if (ready) {
-                    return HealthStatusResponse.channelReady();
+                    return HealthStatusResponse.channelReadyResponse();
                 }
             }
             return HealthStatusResponse.fromGrpcException(exception);
