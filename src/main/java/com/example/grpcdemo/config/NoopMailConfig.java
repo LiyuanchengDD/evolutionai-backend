@@ -5,7 +5,6 @@ import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.MailException;
@@ -29,9 +28,18 @@ public class NoopMailConfig {
 
     @Bean
     @ConditionalOnMissingBean(JavaMailSender.class)
-    @ConditionalOnProperty(prefix = "app.mail", name = "stub-enabled", havingValue = "true", matchIfMissing = true)
     public JavaMailSender noopJavaMailSender() {
+        logFallbackActivation();
         return new LoggingJavaMailSender();
+    }
+
+    private void logFallbackActivation() {
+        Logger logger = LoggerFactory.getLogger(NoopMailConfig.class);
+        if (logger.isWarnEnabled()) {
+            logger.warn("No JavaMailSender bean found; falling back to logging-only mail sender. "
+                    + "Set up spring.mail.* properties or provide a custom JavaMailSender bean "
+                    + "to enable real email delivery.");
+        }
     }
 
     private static class LoggingJavaMailSender implements JavaMailSender {
