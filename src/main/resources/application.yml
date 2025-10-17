@@ -4,24 +4,20 @@ server:
 
 grpc:
   server:
-    # 你机器上 5051 已有旧进程占用，这里先用 9091；等停掉旧进程后可改回 5051
-    port: 9091
+    port: 9091   # 暂用 9091，避免与旧的 5051 冲突；稳定后可改回 5051
 
 spring:
   datasource:
-    # Supabase Pooler 地址（你给的），强制 SSL
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require}
+    url: jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
     driver-class-name: org.postgresql.Driver
-    username: ${SPRING_DATASOURCE_USERNAME:postgres.ecqxglofqhtfkmjcgefi}
-    # 支持两种变量名，其一不存在就用默认密码
-    password: ${SUPABASE_DB_PASSWORD:${SPRING_DATASOURCE_PASSWORD:chengcheng2zJ}}
+    username: postgres.ecqxglofqhtfkmjcgefi
+    password: chengcheng2zJ
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      # Supabase 的 Pooler（pgBouncer，事务池）建议这三条，避免 prepared statement 问题
       data-source-properties:
         sslmode: require
         preferQueryMode: simple
@@ -34,4 +30,17 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        jdbc.lob.non_contextual_creation: true
+
+rabbitmq:
+  host: localhost
+  port: 5672
+
+ai:
+  evaluation-service:
+    base-url: http://localhost:8085
+  job-parser:
+    base-url: http://localhost:8090
+  resume-parser:
+    base-url: http://localhost:8091
+  interview-service:
+    base-url: http://localhost:8092
