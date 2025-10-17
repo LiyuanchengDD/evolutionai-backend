@@ -38,6 +38,12 @@ spring:
           auth: false
           starttls:
             enable: false
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://ecqxglofqhtfkmjcgefi.supabase.co/auth/v1/keys
 
   jpa:
     hibernate:
