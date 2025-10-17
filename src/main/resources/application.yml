@@ -5,10 +5,10 @@ server:
 grpc:
   server:
     address: 0.0.0.0
-    port: ${GRPC_SERVER_PORT:5051}
+    port: ${GRPC_SERVER_PORT:9091}
   client:
     usersvc:
-      address: ${GRPC_CLIENT_USERSVC_ADDRESS:static://127.0.0.1:5051}
+      address: ${GRPC_CLIENT_USERSVC_ADDRESS:static://127.0.0.1:9091}
       negotiation-type: ${GRPC_CLIENT_USERSVC_NEGOTIATIONTYPE:PLAINTEXT}
 
 spring:
