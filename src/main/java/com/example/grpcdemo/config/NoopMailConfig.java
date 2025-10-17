@@ -4,9 +4,10 @@ import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.mail.MailException;
 import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.SimpleMailMessage;
@@ -23,11 +24,12 @@ import java.util.Properties;
  *
  * <p>该实现仅会记录即将发送的邮件内容，而不会真正发送邮件。</p>
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(prefix = "app.mail", name = "stub-enabled", havingValue = "true", matchIfMissing = true)
 public class NoopMailConfig {
 
     @Bean
-    @ConditionalOnMissingBean(JavaMailSender.class)
+    @Primary
     public JavaMailSender noopJavaMailSender() {
         logFallbackActivation();
         return new LoggingJavaMailSender();
