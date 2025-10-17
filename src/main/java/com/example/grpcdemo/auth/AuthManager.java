@@ -39,17 +39,9 @@ public class AuthManager {
     public AuthManager(UserAccountRepository userRepository,
                        AuthVerificationCodeRepository verificationCodeRepository,
                        PasswordEncoder passwordEncoder,
-                       VerificationCodeSender verificationCodeSender) {
-        this(userRepository, verificationCodeRepository, passwordEncoder, verificationCodeSender, new SecureRandom(),
-                Clock.systemUTC());
-    }
-
-    AuthManager(UserAccountRepository userRepository,
-                AuthVerificationCodeRepository verificationCodeRepository,
-                PasswordEncoder passwordEncoder,
-                VerificationCodeSender verificationCodeSender,
-                SecureRandom random,
-                Clock clock) {
+                       VerificationCodeSender verificationCodeSender,
+                       SecureRandom random,
+                       Clock clock) {
         this.userRepository = userRepository;
         this.verificationCodeRepository = verificationCodeRepository;
         this.passwordEncoder = passwordEncoder;
