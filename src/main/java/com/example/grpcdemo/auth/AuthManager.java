@@ -7,6 +7,7 @@ import com.example.grpcdemo.repository.AuthVerificationCodeRepository;
 import com.example.grpcdemo.repository.UserAccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class AuthManager {
     private final SecureRandom random;
     private final Clock clock;
 
+    @Autowired
     public AuthManager(UserAccountRepository userRepository,
                        AuthVerificationCodeRepository verificationCodeRepository,
                        PasswordEncoder passwordEncoder,
