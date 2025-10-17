@@ -6,7 +6,7 @@
 ## 1. 认证、授权与运行环境
 
 ### 1.1 API 默认安全策略
-应用配置为 OAuth 2.0 资源服务器。除 `/public/**`、`/health` 与开发用 OTP 辅助接口外，
+应用配置为 OAuth 2.0 资源服务器。除 `/public/**`、`/api/health` 与开发用 OTP 辅助接口外，
 所有路由都要求携带 Bearer Token，并以无状态方式处理；`/auth/me` 是唯一不经过企业试用过滤器的受保护接口，
 登录成功后应立即调用以初始化前端状态。【F:src/main/java/com/example/grpcdemo/config/SecurityConfig.java†L55-L78】
 

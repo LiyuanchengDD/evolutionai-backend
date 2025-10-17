@@ -45,7 +45,7 @@
 (`active`/`not_sent`/`expired`)。【F:src/main/java/com/example/grpcdemo/controller/AuthMeController.java†L7-L37】
 
 试用期仍依赖 `trial_invitations` 表，拦截逻辑迁移至 `TrialAccessFilter`，对所有业务接口
-生效（白名单：`/public/**`、`/health`、`/auth/me`、`/dev/auth/**`）。【F:src/main/java/com/example/grpcdemo/security/trial/TrialAccessFilter.java†L18-L78】
+生效（白名单：`/public/**`、`/api/health`、`/auth/me`、`/dev/auth/**`）。【F:src/main/java/com/example/grpcdemo/security/trial/TrialAccessFilter.java†L18-L78】
 
 ## 数据库概览
 
