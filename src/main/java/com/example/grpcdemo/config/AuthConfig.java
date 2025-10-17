@@ -32,8 +32,4 @@ public class AuthConfig {
                 clock.orElseGet(Clock::systemUTC)
         );
     }
-
-    // 如项目里尚无这两个 Bean，就一并提供（已有的话可删除这两条）
-    @Bean SecureRandom secureRandom() { return new SecureRandom(); }
-    @Bean Clock clock() { return Clock.systemUTC(); }
 }
