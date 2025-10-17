@@ -111,6 +111,7 @@
             <version>${grpc.version}</version>
         </dependency>
 
+        <!-- JDK 17 不再内置 javax.annotation，gRPC 生成代码仍引用 javax.annotation.Generated -->
         <dependency>
             <groupId>javax.annotation</groupId>
             <artifactId>javax.annotation-api</artifactId>
