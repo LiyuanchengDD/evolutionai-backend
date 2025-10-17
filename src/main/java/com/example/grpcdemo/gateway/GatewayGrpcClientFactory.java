@@ -16,14 +16,20 @@ import net.devh.boot.grpc.client.inject.GrpcClient;
 @Component
 public class GatewayGrpcClientFactory {
 
-    private final ManagedChannel channel;
+    private final Channel channel;
+    private final ManagedChannel managedChannel;
 
-    public GatewayGrpcClientFactory(@GrpcClient("usersvc") ManagedChannel channel) {
+    public GatewayGrpcClientFactory(@GrpcClient("usersvc") Channel channel) {
         this.channel = channel;
+        if (channel instanceof ManagedChannel managedChannel) {
+            this.managedChannel = managedChannel;
+        } else {
+            throw new IllegalStateException("Injected gRPC channel does not support ManagedChannel operations");
+        }
     }
 
     public ManagedChannel managedChannel() {
-        return channel;
+        return managedChannel;
     }
 
     public Channel channel() {
