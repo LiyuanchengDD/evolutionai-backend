@@ -4,6 +4,7 @@ import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.MailException;
@@ -17,16 +18,17 @@ import java.util.Arrays;
 import java.util.Properties;
 
 /**
- * Provides a fallback {@link JavaMailSender} implementation for local development.
+ * 提供一个空操作（No-op）的 {@link JavaMailSender} 实现，
+ * 用于在本地开发或未配置邮件服务器时让应用顺利启动。
  *
- * <p>The service currently only logs outgoing mail requests instead of sending them.
- * This allows the application context to start even when no SMTP server is configured.</p>
+ * <p>该实现仅会记录即将发送的邮件内容，而不会真正发送邮件。</p>
  */
 @Configuration
-public class StubMailConfiguration {
+public class NoopMailConfig {
 
     @Bean
-    public JavaMailSender stubJavaMailSender() {
+    @ConditionalOnMissingBean(JavaMailSender.class)
+    public JavaMailSender noopJavaMailSender() {
         return new LoggingJavaMailSender();
     }
 
@@ -45,13 +47,13 @@ public class StubMailConfiguration {
             try {
                 return new MimeMessage(session, contentStream);
             } catch (Exception ex) {
-                throw new MailPreparationException("Failed to create MimeMessage from stream", ex);
+                throw new MailPreparationException("无法根据输入流创建 MimeMessage", ex);
             }
         }
 
         @Override
         public void send(MimeMessage mimeMessage) throws MailException {
-            log.info("Pretending to send MIME message: subject='{}'", mimeMessage.getSubject());
+            log.info("[NoopMailSender] Pretending to send MIME message: subject='{}'", mimeMessage.getSubject());
         }
 
         @Override
@@ -65,7 +67,7 @@ public class StubMailConfiguration {
             try {
                 mimeMessagePreparator.prepare(mimeMessage);
             } catch (Exception ex) {
-                throw new MailPreparationException("Failed to prepare MIME message", ex);
+                throw new MailPreparationException("无法准备 MimeMessage", ex);
             }
             send(mimeMessage);
         }
@@ -79,7 +81,7 @@ public class StubMailConfiguration {
 
         @Override
         public void send(SimpleMailMessage simpleMessage) throws MailException {
-            log.info("Pretending to send simple mail: to='{}', subject='{}'", Arrays.toString(simpleMessage.getTo()), simpleMessage.getSubject());
+            log.info("[NoopMailSender] Pretending to send simple mail: to='{}', subject='{}'", Arrays.toString(simpleMessage.getTo()), simpleMessage.getSubject());
         }
 
         @Override
@@ -88,4 +90,3 @@ public class StubMailConfiguration {
         }
     }
 }
-
