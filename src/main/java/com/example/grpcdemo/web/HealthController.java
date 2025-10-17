@@ -10,8 +10,6 @@ import com.example.grpcdemo.web.dto.HealthStatusResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import io.grpc.StatusRuntimeException;
-
 @RestController
 @RequestMapping("/api")
 public class HealthController {
@@ -24,12 +22,10 @@ public class HealthController {
 
     @GetMapping("/health")
     public ResponseEntity<HealthStatusResponse> health() {
-        try {
-            var response = healthGatewayService.check("");
-            return ResponseEntity.ok(HealthStatusResponse.fromGrpcResponse(response));
-        } catch (StatusRuntimeException exception) {
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(HealthStatusResponse.fromGrpcException(exception));
+        var response = healthGatewayService.check("");
+        if (response.ok()) {
+            return ResponseEntity.ok(response);
         }
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(response);
     }
 }

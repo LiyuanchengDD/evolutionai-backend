@@ -5,6 +5,7 @@ import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 import io.grpc.Channel;
+import io.grpc.ManagedChannel;
 import net.devh.boot.grpc.client.inject.GrpcClient;
 
 /**
@@ -15,10 +16,14 @@ import net.devh.boot.grpc.client.inject.GrpcClient;
 @Component
 public class GatewayGrpcClientFactory {
 
-    private final Channel channel;
+    private final ManagedChannel channel;
 
-    public GatewayGrpcClientFactory(@GrpcClient("usersvc") Channel channel) {
+    public GatewayGrpcClientFactory(@GrpcClient("usersvc") ManagedChannel channel) {
         this.channel = channel;
+    }
+
+    public ManagedChannel managedChannel() {
+        return channel;
     }
 
     public Channel channel() {

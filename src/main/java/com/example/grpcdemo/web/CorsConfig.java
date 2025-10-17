@@ -1,7 +1,5 @@
 package com.example.grpcdemo.web;
 
-import java.util.List;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,15 +15,16 @@ public class CorsConfig {
             @Value("${app.cors.allowed-origins:*}") String origins) {
         CorsConfiguration cfg = new CorsConfiguration();
         if ("*".equals(origins)) {
-            cfg.addAllowedOriginPattern("*");
+            cfg.addAllowedOriginPattern(CorsConfiguration.ALL);
         } else {
             for (String origin : origins.split(",")) {
                 cfg.addAllowedOriginPattern(origin.trim());
             }
         }
-        cfg.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Content-Type", "Authorization", "x-grpc-web", "grpc-timeout"));
-        cfg.setAllowCredentials(true);
+        cfg.addAllowedMethod(CorsConfiguration.ALL);
+        cfg.addAllowedHeader(CorsConfiguration.ALL);
+        cfg.setAllowCredentials(false);
+        cfg.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);
         return source;
