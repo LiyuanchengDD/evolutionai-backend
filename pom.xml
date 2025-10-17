@@ -2,293 +2,237 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
-    <groupId>com.example</groupId>
-    <artifactId>grpc-demo</artifactId>
-    <version>1.0.0</version>
-    <packaging>jar</packaging>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>grpc-demo</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
 
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.4</version>
-    </parent>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.4</version>
+  </parent>
 
-    <properties>
-        <java.version>17</java.version>
-        <!--
-            Stick to protobuf 3.21.x which ships stable native binaries for all
-            the platforms we target (especially macOS on Apple Silicon).
+  <properties>
+    <java.version>17</java.version>
+    <protobuf.version>3.21.12</protobuf.version>
+    <grpc.version>1.61.0</grpc.version>
+    <proto.skip>false</proto.skip>
+  </properties>
 
-            Version 3.25.x produces Java sources that javac on macOS Sonoma
-            occasionally fails to read ("error reading …"), which is the issue
-            being fixed in this change.  Rolling back to the well tested 3.21.12
-            eliminates those malformed outputs while remaining compatible with
-            the gRPC runtime used by the project.
-        -->
-        <protobuf.version>3.21.12</protobuf.version>
-        <grpc.version>1.61.0</grpc.version>
-        <!--
-            Helper switch that prevents the protobuf plugin from running more than once
-            during a single Maven invocation.  Commands such as
-            `mvn clean generate-sources compile` would otherwise execute the
-            generate-sources phase twice (once for the explicit goal and once as part of
-            the compile lifecycle), which in turn makes the protobuf plugin try to clean
-            the temporary directory twice.  On macOS that second cleanup attempt
-            sporadically fails with "Unable to clean up temporary proto file directory".
-            We default the flag to false here and flip it to true after the first
-            successful generation run via the properties-maven-plugin.
-        -->
-        <proto.skip>false</proto.skip>
-    </properties>
+  <!-- 关键：把依赖放在 <dependencies>，而不是 dependencyManagement -->
+  <dependencies>
+    <!-- Spring Boot -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
 
-    <dependencies>
-        <!-- Spring Boot -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-        </dependency>
+    <!-- Web & validation -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webflux</artifactId>
+    </dependency>
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
+    <!-- gRPC Server/Client -->
+    <dependency>
+      <groupId>net.devh</groupId>
+      <artifactId>grpc-server-spring-boot-starter</artifactId>
+      <version>2.15.0.RELEASE</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-protobuf</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty-shaded</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-services</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.devh</groupId>
+      <artifactId>grpc-client-spring-boot-starter</artifactId>
+      <version>2.15.0.RELEASE</version>
+    </dependency>
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
-        </dependency>
+    <!-- JDK17 需要：gRPC 生成代码里的 javax.annotation.Generated -->
+    <dependency>
+      <groupId>javax.annotation</groupId>
+      <artifactId>javax.annotation-api</artifactId>
+      <version>1.3.2</version>
+    </dependency>
 
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-oauth2-jose</artifactId>
-        </dependency>
+    <!-- Mail & MQ -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-mail</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-amqp</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.retry</groupId>
+      <artifactId>spring-retry</artifactId>
+    </dependency>
 
-        <!-- Web & validation -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webflux</artifactId>
-        </dependency>
+    <!-- JPA（你项目里有 22 个 repository） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
 
+    <!-- 注意：如无需内存库，可删除 H2；保留也不影响，只要你配置了 Postgres URL -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
 
+    <!-- Supabase（PostgreSQL）驱动 -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>42.7.3</version>
+    </dependency>
 
-        <!-- gRPC Server -->
-        <dependency>
-            <groupId>net.devh</groupId>
-            <artifactId>grpc-server-spring-boot-starter</artifactId>
-            <version>2.15.0.RELEASE</version>
-        </dependency>
+    <!-- Protobuf runtime -->
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>${protobuf.version}</version>
+    </dependency>
 
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-stub</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
+    <!-- 其它工具 -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-crypto</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.neovisionaries</groupId>
+      <artifactId>nv-i18n</artifactId>
+      <version>1.29</version>
+    </dependency>
+    <dependency>
+      <groupId>com.googlecode.libphonenumber</groupId>
+      <artifactId>libphonenumber</artifactId>
+      <version>8.13.35</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.tika</groupId>
+      <artifactId>tika-core</artifactId>
+      <version>2.9.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.tika</groupId>
+      <artifactId>tika-parsers-standard-package</artifactId>
+      <version>2.9.0</version>
+    </dependency>
 
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-protobuf</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
+    <!-- Test -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-netty-shaded</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
+  <build>
+    <extensions>
+      <extension>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>1.7.1</version>
+      </extension>
+    </extensions>
 
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-services</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
+    <plugins>
+      <!-- Protobuf / gRPC 代码生成 -->
+      <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <version>0.6.1</version>
+        <configuration>
+          <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+          <skip>${proto.skip}</skip>
+        </configuration>
+        <executions>
+          <execution>
+            <id>generate-proto-sources</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>compile</goal>
+              <goal>compile-custom</goal>
+            </goals>
+            <configuration>
+              <pluginId>grpc-java</pluginId>
+              <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
 
-        <!-- JDK 17 不再内置 javax.annotation，gRPC 生成代码仍引用 javax.annotation.Generated -->
-        <dependency>
-            <groupId>javax.annotation</groupId>
-            <artifactId>javax.annotation-api</artifactId>
-            <version>1.3.2</version>
-        </dependency>
+      <!-- 生成后标记防二次生成 -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>properties-maven-plugin</artifactId>
+        <version>1.2.1</version>
+        <executions>
+          <execution>
+            <id>flag-proto-generated</id>
+            <phase>generate-sources</phase>
+            <goals><goal>set-system-properties</goal></goals>
+            <configuration>
+              <properties>
+                <property>
+                  <name>proto.skip</name>
+                  <value>true</value>
+                </property>
+              </properties>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
 
-        <!-- gRPC Client (可选) -->
-        <dependency>
-            <groupId>net.devh</groupId>
-            <artifactId>grpc-client-spring-boot-starter</artifactId>
-            <version>2.15.0.RELEASE</version>
-        </dependency>
-        <!-- Mail support -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
-        </dependency>
-
-        <!-- RabbitMQ for asynchronous processing -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-amqp</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.retry</groupId>
-            <artifactId>spring-retry</artifactId>
-        </dependency>
-        
-        <!-- Persistence -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
-        <!-- Protobuf -->
-        <dependency>
-            <groupId>com.google.protobuf</groupId>
-            <artifactId>protobuf-java</artifactId>
-            <version>${protobuf.version}</version>
-        </dependency>
-
-        <!-- Password hashing -->
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-crypto</artifactId>
-        </dependency>
-
-        <!-- ISO country & subdivision data -->
-        <dependency>
-            <groupId>com.neovisionaries</groupId>
-            <artifactId>nv-i18n</artifactId>
-            <version>1.29</version>
-        </dependency>
-
-        <!-- International phone metadata -->
-        <dependency>
-            <groupId>com.googlecode.libphonenumber</groupId>
-            <artifactId>libphonenumber</artifactId>
-            <version>8.13.35</version>
-        </dependency>
-
-        <!-- Document parsing for简历/JD提取 -->
-        <dependency>
-            <groupId>org.apache.tika</groupId>
-            <artifactId>tika-core</artifactId>
-            <version>2.9.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.tika</groupId>
-            <artifactId>tika-parsers-standard-package</artifactId>
-            <version>2.9.0</version>
-        </dependency>
-
-        <!-- Testing -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-
-    <build>
-  <!-- 建议加上，用于解析 ${os.detected.classifier}（Mac M 芯片会得到 osx-aarch_64） -->
-  <extensions>
-    <extension>
-      <groupId>kr.motd.maven</groupId>
-      <artifactId>os-maven-plugin</artifactId>
-      <version>1.7.1</version>
-    </extension>
-  </extensions>
-
-  <plugins>
-    <!-- Protobuf / gRPC 代码生成 -->
-    <plugin>
-      <groupId>org.xolstice.maven.plugins</groupId>
-      <artifactId>protobuf-maven-plugin</artifactId>
-      <version>0.6.1</version>
-      <configuration>
-        <protocArtifact>
-          com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
-        </protocArtifact>
-        <skip>${proto.skip}</skip>
-      </configuration>
-      <executions>
-        <execution>
-          <id>generate-proto-sources</id>
-          <!--
-            绑定到 generate-sources 阶段，这样无论执行 `generate-sources` 还是
-            `compile`，都会在真正编译 Java 代码前生成 gRPC stub，避免缺少
-            com.example.grpcdemo.proto 包导致的编译错误。
-          -->
-          <phase>generate-sources</phase>
-          <goals>
-            <goal>compile</goal>         <!-- 生成 protobuf Java -->
-            <goal>compile-custom</goal>  <!-- 生成 gRPC stub -->
-          </goals>
-          <configuration>
-            <pluginId>grpc-java</pluginId>
-            <pluginArtifact>
-              io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
-            </pluginArtifact>
-          </configuration>
-        </execution>
-      </executions>
-    </plugin>
-
-    <!--
-      After the protobuf plugin has generated sources once we mark the rest of the
-      build so that subsequent lifecycle passes (e.g. the implicit generate-sources
-      that is triggered before compile) can skip the expensive regeneration step.
-      This avoids the double-run that previously caused the protobuf plugin to fail
-      while trying to clean up its temporary directories on macOS.
-    -->
-    <plugin>
-      <groupId>org.codehaus.mojo</groupId>
-      <artifactId>properties-maven-plugin</artifactId>
-      <version>1.2.1</version>
-      <executions>
-        <execution>
-          <id>flag-proto-generated</id>
-          <phase>generate-sources</phase>
-          <goals>
-            <!--
-              The plugin only offers set-system-properties in the declared version, so
-              we flip the proto.skip flag via a system property after the first
-              generate-sources run.  Maven resolves project expressions against system
-              properties as well, which is enough to prevent the second protobuf code
-              generation pass in the same invocation.
-            -->
-            <goal>set-system-properties</goal>
-          </goals>
-          <configuration>
-            <properties>
-              <property>
-                <name>proto.skip</name>
-                <value>true</value>
-              </property>
-            </properties>
-          </configuration>
-        </execution>
-      </executions>
-    </plugin>
-
-    <!-- 编译器设置（Java 17） -->
-    <plugin>
-      <groupId>org.apache.maven.plugins</groupId>
-      <artifactId>maven-compiler-plugin</artifactId>
-      <version>3.11.0</version>
-      <configuration>
-        <release>17</release>
-      </configuration>
-    </plugin>
-  </plugins>
-</build>
+      <!-- Java 17 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration><release>17</release></configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
