@@ -1,5 +1,7 @@
 package com.example.grpcdemo.controller;
 
+import com.example.grpcdemo.auth.AuthErrorCode;
+import com.example.grpcdemo.auth.AuthException;
 import com.example.grpcdemo.controller.dto.ErrorResponse;
 import com.example.grpcdemo.onboarding.OnboardingErrorCode;
 import com.example.grpcdemo.onboarding.OnboardingException;
@@ -32,6 +34,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("INVALID_ARGUMENT", exception.getMessage()));
+    }
+
+    @ExceptionHandler(AuthException.class)
+    public ResponseEntity<ErrorResponse> handleAuthException(AuthException exception) {
+        AuthErrorCode code = exception.getErrorCode();
+        String message = exception.getMessage() != null ? exception.getMessage() : code.getDefaultMessage();
+        return ResponseEntity.status(code.getHttpStatus())
+                .body(new ErrorResponse(code.name(), message));
     }
 
     @ExceptionHandler(OnboardingException.class)

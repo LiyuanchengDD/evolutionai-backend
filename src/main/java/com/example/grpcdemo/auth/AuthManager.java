@@ -8,6 +8,8 @@ import com.example.grpcdemo.repository.UserAccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -18,6 +20,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+@Component
 public class AuthManager {
 
     private static final Logger log = LoggerFactory.getLogger(AuthManager.class);
@@ -54,6 +57,7 @@ public class AuthManager {
         return requestVerificationCode(email, role, VerificationPurpose.PASSWORD_RESET);
     }
 
+    @Transactional
     public VerificationResult requestVerificationCode(String email,
                                                       AuthRole role,
                                                       VerificationPurpose purpose) {
@@ -63,6 +67,7 @@ public class AuthManager {
         };
     }
 
+    @Transactional
     public void resetPassword(String email, String verificationCode, String newPassword, AuthRole role) {
         String normalizedEmail = normalizeEmail(email);
         validateEmail(normalizedEmail);
@@ -94,6 +99,7 @@ public class AuthManager {
         log.info("Reset password for email={}, role={}", normalizedEmail, role);
     }
 
+    @Transactional
     public AuthSession register(String email, String password, String verificationCode, AuthRole role) {
         String normalizedEmail = normalizeEmail(email);
         validateEmail(normalizedEmail);
