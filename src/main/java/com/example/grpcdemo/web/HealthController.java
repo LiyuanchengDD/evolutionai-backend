@@ -1,26 +1,35 @@
 package com.example.grpcdemo.web;
 
-import java.util.Map;
-
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import io.grpc.health.v1.HealthCheckRequest;
-import io.grpc.health.v1.HealthGrpc;
-import net.devh.boot.grpc.client.inject.GrpcClient;
+import com.example.grpcdemo.gateway.HealthGatewayService;
+import com.example.grpcdemo.web.dto.HealthStatusResponse;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
+import io.grpc.StatusRuntimeException;
 
 @RestController
 @RequestMapping("/api")
 public class HealthController {
 
-    @GrpcClient("usersvc")
-    private HealthGrpc.HealthBlockingStub healthStub;
+    private final HealthGatewayService healthGatewayService;
+
+    public HealthController(HealthGatewayService healthGatewayService) {
+        this.healthGatewayService = healthGatewayService;
+    }
 
     @GetMapping("/health")
-    public Map<String, String> health() {
-        HealthCheckRequest request = HealthCheckRequest.newBuilder().setService("").build();
-        var response = healthStub.check(request);
-        return Map.of("status", response.getStatus().name());
+    public ResponseEntity<HealthStatusResponse> health() {
+        try {
+            var response = healthGatewayService.check("");
+            return ResponseEntity.ok(HealthStatusResponse.fromGrpcResponse(response));
+        } catch (StatusRuntimeException exception) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(HealthStatusResponse.fromGrpcException(exception));
+        }
     }
 }
