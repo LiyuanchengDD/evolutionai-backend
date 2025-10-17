@@ -1,0 +1,19 @@
+[Unit]
+Description=EvolutionAI REST gateway for gRPC services
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/evolutionai/rest-gateway.env
+WorkingDirectory=/opt/evolutionai/rest-gateway
+ExecStart=/usr/bin/java -jar rest-gateway.jar
+Restart=always
+RestartSec=5
+User=ec2-user
+LimitNOFILE=65535
+StandardOutput=append:/var/log/rest-gateway/rest-gateway.log
+StandardError=inherit
+
+[Install]
+WantedBy=multi-user.target

@@ -1,3 +1,33 @@
+## REST→gRPC 网关部署
+
+该项目同时提供一个将 HTTP REST 请求转发到内部 gRPC 服务的最小可用网关：
+
+1. **编译与运行**
+   ```bash
+   ./mvnw -DskipTests package
+   java -jar target/grpc-demo-1.0.0.jar
+   ```
+   默认会监听 `0.0.0.0:8080` 并透传到本机 `127.0.0.1:5051` 的 gRPC 服务，可通过
+   `SERVER_ADDRESS`、`SERVER_PORT`、`GRPC_CLIENT_USERSVC_ADDRESS` 等环境变量覆盖。
+
+2. **systemd 部署**
+   - 将 `deploy/rest-gateway.service` 拷贝到 `/etc/systemd/system/`。
+   - 创建 `/etc/evolutionai/rest-gateway.env` 写入需要的覆盖变量，例如：
+     ```ini
+     SERVER_PORT=8080
+     GRPC_CLIENT_USERSVC_ADDRESS=static://127.0.0.1:5051
+     GRPC_CLIENT_USERSVC_NEGOTIATIONTYPE=PLAINTEXT
+     APP_CORS_ALLOWED_ORIGINS=https://frontend.example.com
+     ```
+   - 准备运行目录 `/opt/evolutionai/rest-gateway` 并放置构建出的 `rest-gateway.jar`（可对
+     `target/grpc-demo-1.0.0.jar` 进行重命名）。
+   - 执行 `sudo systemctl daemon-reload && sudo systemctl enable --now rest-gateway` 启动。
+
+3. **一键自测脚本**
+   - 确保机器安装了 `curl`、`grpcurl` 与 `python3`。
+   - 运行 `scripts/healthcheck.sh`，脚本会同时验证 REST `/api/health` 与 gRPC `grpc.health.v1.Health/Check`
+     并输出详细日志，全部成功后会打印 `PASS`。
+
 ## 登录与鉴权
 
 项目已切换为 **Supabase + Spring Security OAuth2 Resource Server** 模式，后端仅负责
