@@ -1,5 +1,6 @@
 package com.example.grpcdemo.config;
 
+import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -65,7 +66,11 @@ public class NoopMailConfig {
 
         @Override
         public void send(MimeMessage mimeMessage) throws MailException {
-            log.info("[NoopMailSender] Pretending to send MIME message: subject='{}'", mimeMessage.getSubject());
+            try {
+                log.info("[NoopMailSender] Pretending to send MIME message: subject='{}'", mimeMessage.getSubject());
+            } catch (MessagingException ex) {
+                log.warn("[NoopMailSender] Pretending to send MIME message but failed to resolve subject", ex);
+            }
         }
 
         @Override
