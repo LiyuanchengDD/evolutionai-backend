@@ -22,7 +22,7 @@ public class RestJobDescriptionParser implements JobDescriptionParser {
     private final ObjectMapper objectMapper;
 
     public RestJobDescriptionParser(WebClient.Builder builder,
-                                    @Value("${ai.job-parser.base-url}") String baseUrl,
+                                    @Value("${ai.job-parser.base-url:http://localhost:8090}") String baseUrl,
                                     ObjectMapper objectMapper) {
         this.webClient = builder
                 .baseUrl(baseUrl)
