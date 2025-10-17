@@ -7,7 +7,7 @@
    ./mvnw -DskipTests package
    java -jar target/grpc-demo-1.0.0.jar
    ```
-   默认会监听 `0.0.0.0:8080` 并透传到本机 `127.0.0.1:5051` 的 gRPC 服务，可通过
+   默认会监听 `0.0.0.0:8080` 并透传到本机 `127.0.0.1:9091` 的 gRPC 服务，可通过
    `SERVER_ADDRESS`、`SERVER_PORT`、`GRPC_CLIENT_USERSVC_ADDRESS` 等环境变量覆盖。
 
 2. **systemd 部署**
@@ -15,7 +15,7 @@
    - 创建 `/etc/evolutionai/rest-gateway.env` 写入需要的覆盖变量，例如：
      ```ini
      SERVER_PORT=8080
-     GRPC_CLIENT_USERSVC_ADDRESS=static://127.0.0.1:5051
+     GRPC_CLIENT_USERSVC_ADDRESS=static://127.0.0.1:9091
      GRPC_CLIENT_USERSVC_NEGOTIATIONTYPE=PLAINTEXT
      APP_CORS_ALLOWED_ORIGINS=https://frontend.example.com
      ```
