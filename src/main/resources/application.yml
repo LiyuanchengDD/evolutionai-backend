@@ -29,6 +29,16 @@ spring:
         preferQueryMode: simple
         prepareThreshold: 0
 
+  mail:
+    host: localhost
+    port: 1025
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
   jpa:
     hibernate:
       ddl-auto: none
