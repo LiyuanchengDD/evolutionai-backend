@@ -4,11 +4,13 @@ import com.example.grpcdemo.security.AppAuthProperties;
 import com.example.grpcdemo.security.CompositeJwtDecoder;
 import com.example.grpcdemo.security.UserJwtAuthenticationConverter;
 import com.example.grpcdemo.security.trial.TrialAccessFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -16,8 +18,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -42,6 +44,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final AppAuthProperties authProperties;
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     public SecurityConfig(AppAuthProperties authProperties) {
         this.authProperties = authProperties;
@@ -81,11 +84,20 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder() {
         List<JwtDecoder> decoders = new ArrayList<>();
-        if (StringUtils.hasText(authProperties.getSupabase().getJwksUrl())) {
+        boolean supabaseConfigured = StringUtils.hasText(authProperties.getSupabase().getJwksUrl());
+        if (supabaseConfigured) {
             decoders.add(buildSupabaseDecoder());
         }
         if (authProperties.isDevOtpMode()) {
             decoders.add(buildDevDecoder());
+        }
+        if (!supabaseConfigured && !authProperties.isDevOtpMode()) {
+            if (!"prod".equalsIgnoreCase(authProperties.getEnv())) {
+                log.warn("Supabase JWKS 未配置，在 {} 环境启用 dev-otp 模式作为后备方案，仅用于开发测试。", authProperties.getEnv());
+                decoders.add(buildDevDecoder());
+            } else {
+                throw new IllegalStateException("在生产环境缺少 Supabase JWKS 配置，且未启用 dev-otp 模式，无法创建 JWT 解码器");
+            }
         }
         if (decoders.isEmpty()) {
             throw new IllegalStateException("未配置可用的 JWT 解码器，请检查 Supabase JWKS 或 dev-otp 设置");
@@ -104,7 +116,11 @@ public class SecurityConfig {
     }
 
     private JwtDecoder buildDevDecoder() {
-        byte[] secretBytes = authProperties.getDevOtp().getJwtSecret().getBytes(StandardCharsets.UTF_8);
+        String secret = authProperties.getDevOtp().getJwtSecret();
+        if (!StringUtils.hasText(secret)) {
+            throw new IllegalStateException("dev-otp 模式缺少 JWT 密钥，请设置 app.auth.dev-otp.jwt-secret");
+        }
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         SecretKeySpec secretKey = new SecretKeySpec(secretBytes, "HmacSHA256");
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(secretKey).build();
         decoder.setJwtValidator(token -> {
