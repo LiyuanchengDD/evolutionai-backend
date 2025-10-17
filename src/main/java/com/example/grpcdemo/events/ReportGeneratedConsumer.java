@@ -4,6 +4,7 @@ import com.example.grpcdemo.config.RabbitMQConfig;
 import com.example.grpcdemo.model.Candidate;
 import com.example.grpcdemo.repository.CandidateRepository;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("!test")
+@ConditionalOnProperty(prefix = "app.rabbit", name = "enabled", havingValue = "true")
 public class ReportGeneratedConsumer {
 
     private final CandidateRepository candidateRepository;

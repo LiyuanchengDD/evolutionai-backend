@@ -6,6 +6,12 @@ grpc:
   server:
     port: 9091   # 暂用 9091，避免与旧的 5051 冲突；稳定后可改回 5051
 
+app:
+  mail:
+    stub-enabled: true
+  rabbit:
+    enabled: false
+
 spring:
   datasource:
     url: jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
