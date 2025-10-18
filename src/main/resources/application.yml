@@ -11,6 +11,11 @@ app:
     stub-enabled: true
   rabbit:
     enabled: false
+  auth:
+    mode: supabase
+    supabase:
+      project-url: https://ecqxglofqhtfkmjcgefi.supabase.co
+      jwks-url: https://ecqxglofqhtfkmjcgefi.supabase.co/auth/v1/.well-known/jwks.json
 
 spring:
   datasource:
@@ -43,7 +48,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: https://ecqxglofqhtfkmjcgefi.supabase.co/auth/v1/keys
+          jwk-set-uri: https://ecqxglofqhtfkmjcgefi.supabase.co/auth/v1/.well-known/jwks.json
 
   jpa:
     hibernate:
