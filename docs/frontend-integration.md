@@ -12,7 +12,7 @@
 ```bash
 # Supabase 相关
 SUPABASE_PROJECT_URL=https://<project>.supabase.co
-SUPABASE_JWKS_URL=https://<project>.supabase.co/auth/v1/jwks
+SUPABASE_JWKS_URL=https://<project>.supabase.co/auth/v1/.well-known/jwks.json
 SUPABASE_SERVICE_ROLE_KEY=...           # 后端使用，请勿下发前端
 
 # 数据库连接
